@@ -1,0 +1,146 @@
+{% extends "app/layout.html" %}
+
+{% block content %}
+
+<style>
+    /* Highlight the selected row */
+    tr.selected {
+        background-color: #d1e7dd;
+    }
+
+    /* Optional hover effect */
+    tr:hover {
+        background-color: #f2f26f26;
+        cursor: pointer;
+    }
+
+    table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-bottom: 20px;
+    }
+
+    th, td {
+        padding: 12px 15px;
+        border: 1px solid #ddd;
+        text-align: left;
+    }
+
+    th {
+        background-color: #28a745; /* Use the same green color as the button */
+        color: white;
+        font-weight: bold;
+    }
+
+    tr:nth-child(even) {
+        background-color: #f9f9f9;
+    }
+
+    tr:hover {
+        background-color: #f1f1f1;
+        cursor: pointer;
+    }
+
+    table thead {
+        background-color: #007bff;
+        color: white;
+    }
+
+    h1, h2 {
+        font-family: Arial, sans-serif;
+        color: #333;
+        margin-bottom: 20px;
+    }
+
+    button {
+        background-color: #28a745;
+        color: white;
+        padding: 10px 20px;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+        font-size: 16px;
+    }
+
+        button:hover {
+            background-color: #218838;
+        }
+
+    /* Center the button and table */
+    .content {
+        max-width: 800px;
+        margin: 0 auto;
+        text-align: center;
+    }
+
+        .content h1, .content h2 {
+            text-align: center;
+        }
+
+    .status-circle {
+        display: inline-block;
+        width: 15px;
+        height: 15px;
+        border-radius: 50%;
+        background-color: gray; /* Default color */
+    }
+
+    .status-0 {
+        background-color: red;
+    }
+
+    .status-1 {
+        background-color: yellow;
+    }
+
+    .status-2 {
+        background-color: green;
+    }
+</style>
+
+<button id="fetchDeviceStatusButton" class="btn btn-primary">Debug Fetch Shelly Status</button>
+<button onclick="toggleRelay('on')">Turn On</button>
+<button onclick="toggleRelay('off')">Turn Off</button>
+
+<script>
+    const deviceId = '0cdc7ef5a5ec';
+    //fetchDeviceStatusButton button
+    document.getElementById("fetchDeviceStatusButton").addEventListener("click", function () {
+        // You might need to set the device ID dynamically or hard-code it for testing purposes
+        // const deviceId = '0cdc7ef5a5ec';  // Replace with the actual device ID for testing
+
+        // Make an AJAX call to fetch the device status
+        fetch(`/shellyapp/fetch-device-status/?device_id=${deviceId}`)
+            .then(response => response.json())  // Parse JSON response
+            .then(data => {
+                console.log("Device status fetched successfully:", data);
+
+                // Update the UI with the fetched status
+                //const statusContainer = document.getElementById("status");
+                //statusContainer.innerHTML = JSON.stringify(data, null, 2);  // Display formatted JSON
+                alert("Device Status: " + JSON.stringify(data, null, 2));
+            })
+            .catch(error => {
+                console.error("Error fetching device status:", error);
+                document.getElementById("status").innerText = "Error fetching status";
+            });
+    });
+
+    function toggleRelay(state) {
+        //const deviceId = 'your_device_id';  // Replace with actual device ID
+
+        fetch(`/shellyapp/toggle-device-ouput/?device_id=${deviceId}&state=${state}`)
+            .then(response => response.json())
+            .then(data => {
+                console.log(`Device relay turned ${state} successfully:`, data);
+                alert(`Device relay turned ${state} successfully`);
+            })
+            .catch(error => {
+                console.error(`Error turning relay ${state}:`, error);
+                alert(`Error turning relay ${state}`);
+            });
+    }
+
+</script>
+
+{% endblock %}
