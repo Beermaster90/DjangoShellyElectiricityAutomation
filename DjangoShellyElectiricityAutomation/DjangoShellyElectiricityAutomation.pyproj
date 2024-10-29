@@ -36,6 +36,12 @@
     <Compile Include="app\admin.py">
       <SubType>Code</SubType>
     </Compile>
+    <Compile Include="app\price_views.py">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="app\services\electricity_service.py">
+      <SubType>Code</SubType>
+    </Compile>
     <Compile Include="app\services\shelly_service.py">
       <SubType>Code</SubType>
     </Compile>

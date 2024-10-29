@@ -101,6 +101,7 @@
 <button id="fetchDeviceStatusButton" class="btn btn-primary">Debug Fetch Shelly Status</button>
 <button onclick="toggleRelay('on')">Turn On</button>
 <button onclick="toggleRelay('off')">Turn Off</button>
+<button onclick="fetchPrice()">Fetch Prices</button>
 
 <script>
     const deviceId = '0cdc7ef5a5ec';
@@ -138,6 +139,20 @@
             .catch(error => {
                 console.error(`Error turning relay ${state}:`, error);
                 alert(`Error turning relay ${state}`);
+            });
+    }
+
+    function fetchPrice() {
+
+        fetch(`/shellyapp/fetch-prices/?device_id=${deviceId}`)
+            .then(response => response.json())
+            .then(data => {
+                console.log(`Price data fetched successfully:`, data);
+                alert(`Price data fetched succesfully`);
+            })
+            .catch(error => {
+                console.error(`Error fetching prices: `, error);
+                alert(`Error fetching prices`);
             });
     }
 
