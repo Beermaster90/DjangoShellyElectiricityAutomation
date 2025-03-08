@@ -35,12 +35,12 @@ class ShellyDevice(models.Model):
     # New fields for transfer prices
     day_transfer_price = models.DecimalField(
         max_digits=6, decimal_places=5,
-        help_text="Transfer price during the day (e/kWh)"
+        help_text="Transfer price during the day (c/kWh)"
     )
 
     night_transfer_price = models.DecimalField(
         max_digits=6, decimal_places=5,
-        help_text="Transfer price during the night (e/kWh)"
+        help_text="Transfer price during the night (c/kWh)"
     )
 
     def __str__(self):

@@ -1,7 +1,9 @@
 from datetime import datetime
 from django.shortcuts import render
 from django.http import HttpRequest
-from .models import ElectricityPrice  # Import your model
+from .models import ElectricityPrice,ShellyDevice  # Import your models
+from .price_views import get_cheapest_hours
+from django.contrib.auth.decorators import login_required
 
 def home(request):
     """Renders the home page."""
@@ -41,27 +43,50 @@ def about(request):
         }
     )
 
+def get_common_context(request):
+    """Helper function to fetch shared context data for views."""
+    prices = list(ElectricityPrice.objects.all().order_by("start_time").values("start_time", "price_kwh"))
 
+    devices = ShellyDevice.objects.all()
+    selected_device = devices.first()
+
+    selected_device_id = request.GET.get("device_id")
+    if selected_device_id:
+        selected_device = ShellyDevice.objects.filter(device_id=selected_device_id).first()
+
+    day_transfer_price = selected_device.day_transfer_price if selected_device else 0
+    night_transfer_price = selected_device.night_transfer_price if selected_device else 0
+    hours_needed = selected_device.hours_needed if selected_device and hasattr(selected_device, 'hours_needed') else 3
+
+    # Compute cheapest hours per **each device**
+    for device in devices:
+        device_hours_needed = device.run_hours_per_day if hasattr(device, 'run_hours_per_day') else 0
+        device_cheapest_hours = get_cheapest_hours(prices, device.day_transfer_price, device.night_transfer_price, device_hours_needed)
+        device.cheapest_hours = [dt.strftime("%H:%M") for dt in device_cheapest_hours]
+
+    # **Ensure the current hour is passed**
+    current_hour = datetime.now().strftime("%H")  # Get current hour in "HH" format
+
+    return {
+        "prices": prices,
+        "devices": devices,
+        "selected_device": selected_device,
+        "day_transfer_price": day_transfer_price,
+        "night_transfer_price": night_transfer_price,
+        "current_hour": current_hour,  # Ensure this is in the context
+        "title": "Landing Page",
+        "year": datetime.now().year,
+    }
+
+
+@login_required(login_url='/login/')  # Apply restriction to index
 def home(request):
-    # Fetch all prices ordered by start_time (no conversion needed)
-    prices = ElectricityPrice.objects.all().order_by('start_time')
+    #"""Landing page view."""
+    return render(request, "app/index.html", get_common_context(request))
 
-    context = {
-        'prices': prices,
-        'title': 'Landing Page',
-        'year': datetime.now().year,
-    }
-    return render(request, "app/index.html", context)
-
+@login_required(login_url='/login/')  # Apply restriction to index
 def index(request):
-    # Fetch all prices ordered by start_time (no conversion needed)
-    prices = ElectricityPrice.objects.all().order_by('start_time')
-
-    context = {
-        'prices': prices,
-        'title': 'ShellyApp Index',
-        'year': datetime.now().year,
-    }
-    return render(request, "app/index.html", context)
+    #"""ShellyApp index view."""
+    return render(request, "app/index.html", get_common_context(request))
 
 

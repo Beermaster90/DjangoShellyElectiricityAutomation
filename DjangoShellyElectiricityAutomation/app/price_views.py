@@ -84,3 +84,30 @@ def save_prices_for_period(period_start_str, price_points):
             end_time=end_time,
             defaults={'price_kwh': price_c_per_kwh}  # Now stored in c/kWh directly
         )
+
+def get_cheapest_hours(prices, day_transfer_price, night_transfer_price, hours_needed):
+    """
+    Determine the cheapest hours to run a device based on electricity prices.
+
+    :param prices: List of dictionaries with 'start_time' and 'price_kwh'
+    :param day_transfer_price: Additional price during the day (c/kWh)
+    :param night_transfer_price: Additional price during the night (c/kWh)
+    :param hours_needed: Number of hours required to run the device per day
+    :return: List of cheapest time slots (datetime objects)
+    """
+
+    # Ensure prices include total price (electricity + transfer cost)
+    for entry in prices:
+        hour = entry['start_time'].hour
+        if 7 <= hour < 22:  # Daytime hours (7:00-22:00)
+            entry['total_price'] = entry['price_kwh'] + day_transfer_price
+        else:  # Nighttime hours
+            entry['total_price'] = entry['price_kwh'] + night_transfer_price
+
+    # Sort by total price (ascending order)
+    sorted_prices = sorted(prices, key=lambda x: x['total_price'])
+
+    # Select **exactly** `hours_needed` hours (Fixes incorrect hour count)
+    cheapest_slots = [entry['start_time'] for entry in sorted_prices[:hours_needed]]
+
+    return cheapest_slots

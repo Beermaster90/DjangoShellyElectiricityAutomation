@@ -2,95 +2,156 @@
 
 {% block content %}
 
-<style>
-    /* General styling */
-    body {
-        font-family: Arial, sans-serif;
-        background-color: #f8f9fa;
-    }
-
-    /* Table styles */
-    .table-container {
-        max-width: 900px;
-        margin: 20px auto;
-        background: white;
-        padding: 15px;
-        border-radius: 8px;
-        box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.1);
-    }
-
-    table {
-        width: 100%;
-        border-collapse: collapse;
-        margin-bottom: 20px;
-    }
-
-    th, td {
-        padding: 12px 15px;
-        border: 1px solid #ddd;
-        text-align: center;
-    }
-
-    th {
-        background-color: #007bff;
-        color: white;
-        font-weight: bold;
-    }
-
-    tr:nth-child(even) {
-        background-color: #f9f9f9;
-    }
-
-    tr:hover {
-        background-color: #f1f1f1;
-        cursor: pointer;
-    }
-
-    h1 {
-        text-align: center;
-        margin-bottom: 20px;
-        color: #333;
-    }
-
-    .chart-container {
-        width: 100%;
-        max-width: 900px;
-        height: 400px;
-        margin: 0 auto;
-    }
-
-    canvas {
-        max-width: 100%;
-        height: 400px !important; /* Prevent infinite expansion */
-    }
-</style>
-
-<!-- Chart Container -->
-<div class="chart-container">
-    <canvas id="priceChart"></canvas>
-</div>
-
+{% if user.is_authenticated %}
+<!-- Show full dashboard when logged in -->
 <div class="table-container">
-    <h1>Electricity Prices</h1>
-    <table>
-        <thead>
-            <tr>
-                <th>Start Time (Local)</th>
-                <!--<th>End Time (Local)</th>-->
-                <th>Price (c/kWh)</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for price in prices %}
-            <tr>
-                <!-- Store UTC timestamps in data attributes -->
-                <td>{{ price.start_time|date:"Y-m-d H:i T" }}</td>
-                <!--<td>{{ price.end_time|date:"Y-m-d H:i T" }}</td> -->
-                <td class="price-value" data-price="{{ price.price_kwh }}">{{ price.price_kwh }} c/kWh</td>
-            </tr>
+
+    <style>
+        /* General styling */
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f8f9fa;
+        }
+
+        .table-container {
+            max-width: 900px;
+            margin: 20px auto;
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+
+        th, td {
+            padding: 12px 15px;
+            border: 1px solid #ddd;
+            text-align: center;
+        }
+
+        th {
+            background-color: #007bff;
+            color: white;
+            font-weight: bold;
+        }
+
+        tr.cheapest-hour {
+            background-color: #28a745 !important; /* Green highlight */
+            color: white;
+        }
+
+        h1 {
+            text-align: center;
+            margin-bottom: 20px;
+            color: #333;
+        }
+
+        .chart-container {
+            width: 100%;
+            max-width: 900px;
+            height: 400px;
+            margin: 0 auto;
+        }
+
+        canvas {
+            max-width: 100%;
+            height: 400px !important;
+        }
+
+        .current-hour {
+            background-color: lightblue !important;
+        }
+
+        .status-online {
+            color: green;
+            font-weight: bold;
+        }
+
+        .status-offline {
+            color: red;
+            font-weight: bold;
+        }
+
+        .status-running {
+            color: #007bff; /* Blue for running */
+            font-weight: bold;
+        }
+
+        .status-stopped {
+            color: orange;
+            font-weight: bold;
+        }
+
+        .status-error {
+            color: darkred;
+            font-weight: bold;
+        }
+
+        .status-loading {
+            color: gray;
+            font-style: italic;
+        }
+    </style>
+
+    <!-- Device Selection Dropdown -->
+    <select id="deviceSelect" onchange="updateDeviceData()">
+        {% for device in devices %}
+        <option value="{{ device.device_id }}"
+                data-day-price="{{ device.day_transfer_price }}"
+                data-night-price="{{ device.night_transfer_price }}"
+                data-hours-needed="{{ device.hours_needed }}"
+                data-cheapest-hours="{{ device.cheapest_hours|join:',' }}">
+            {{ device.familiar_name }}
+        </option>
+        {% endfor %}
+    </select>
+
+    <!-- Shelly Device Status -->
+    <div class="device-status">
+        <h3>Device Status</h3>
+        <p id="deviceStatus">Fetching status...</p>
+    </div>
+
+
+    <!-- Hidden inputs -->
+    <input type="hidden" id="dayTransferPrice" value="0">
+    <input type="hidden" id="nightTransferPrice" value="0">
+    <input type="hidden" id="cheapestHours" value="">
+    <input type="hidden" id="hoursNeeded" value="0">
+    <!-- Transfer Prices Display -->
+    <div class="table-container">
+        <h2>Transfer Prices</h2>
+        <p><strong>Day Transfer Price:</strong> <span id="dayPriceText">-</span> c/kWh (07:00 - 21:59)</p>
+        <p><strong>Night Transfer Price:</strong> <span id="nightPriceText">-</span> c/kWh (22:00 - 06:59)</p>
+    </div>
+    <!-- Chart Container -->
+    <div class="chart-container">
+        <canvas id="priceChart"></canvas>
+    </div>
+
+    <div class="table-container">
+        <h1>Electricity Prices</h1>
+        <table>
+            <thead>
+                <tr>
+                    <th>Start Time (Local)</th>
+                    <th>Price (c/kWh)</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for price in prices %}
+                <tr class="{% if price.start_time|date:'H' == current_hour %}current-hour{% endif %}">
+                    <td>{{ price.start_time|date:"H:i" }}</td>
+                    <td class="price-value" data-price="{{ price.price_kwh }}">{{ price.price_kwh }} c/kWh</td>
+                </tr>
                 {% empty %}
                 <tr>
-                    <td colspan="3">No prices available.</td>
+                    <td colspan="2">No prices available.</td>
                 </tr>
                 {% endfor %}
             </tbody>
@@ -99,130 +160,204 @@
 
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-    <button id="fetchDeviceStatusButton" class="btn btn-primary">Debug Fetch Shelly Status</button>
-    <button onclick="toggleRelay('on')">Turn On</button>
-    <button onclick="toggleRelay('off')">Turn Off</button>
-    <button onclick="fetchPrice()">Fetch Prices</button>
-
-
-
     <script>
-        const deviceId = '0cdc7ef5a5ec';
-        //fetchDeviceStatusButton button
-        document.getElementById("fetchDeviceStatusButton").addEventListener("click", function () {
-            // You might need to set the device ID dynamically or hard-code it for testing purposes
-            // const deviceId = '0cdc7ef5a5ec';  // Replace with the actual device ID for testing
+        let currentDeviceId = document.getElementById("deviceSelect").value;
 
-            // Make an AJAX call to fetch the device status
+        function fetchDeviceStatus(deviceId) {
+            if (!deviceId) {
+                updateStatus("No device selected.", "status-error");
+                return;
+            }
+
+            console.log("Fetching status for device: ", deviceId); // Debugging log
+
             fetch(`/shellyapp/fetch-device-status/?device_id=${deviceId}`)
-                .then(response => response.json())  // Parse JSON response
-                .then(data => {
-                    console.log("Device status fetched successfully:", data);
-
-                    // Update the UI with the fetched status
-                    //const statusContainer = document.getElementById("status");
-                    //statusContainer.innerHTML = JSON.stringify(data, null, 2);  // Display formatted JSON
-                    alert("Device Status: " + JSON.stringify(data, null, 2));
-                })
-                .catch(error => {
-                    console.error("Error fetching device status:", error);
-                    document.getElementById("status").innerText = "Error fetching status";
-                });
-        });
-
-        function toggleRelay(state) {
-            //const deviceId = 'your_device_id';  // Replace with actual device ID
-
-            fetch(`/shellyapp/toggle-device-ouput/?device_id=${deviceId}&state=${state}`)
                 .then(response => response.json())
                 .then(data => {
-                    console.log(`Device relay turned ${state} successfully:`, data);
-                    alert(`Device relay turned ${state} successfully`);
+                    console.log("Simplified Device Status:", data); // Debugging log
+
+                    if (data.error) {
+                        updateStatus("Error fetching status", "status-error");
+                        return;
+                    }
+
+                    let statusText = data.online ? "Online" : "Offline";
+                    let statusClass = data.online ? "status-online" : "status-offline";
+
+                    if (data.running === "Running") {
+                        statusText += " | RUNNING";
+                        statusClass = "status-running";
+                    } else if (data.running === "Stopped") {
+                        statusText += " | STOPPED";
+                        statusClass = "status-stopped";
+                    }
+
+                    updateStatus(statusText, statusClass);
                 })
                 .catch(error => {
-                    console.error(`Error turning relay ${state}:`, error);
-                    alert(`Error turning relay ${state}`);
+                    console.error("Error fetching Shelly device status:", error);
+                    updateStatus(`Error: ${error.message}`, "status-error");
                 });
         }
 
-        function fetchPrice() {
-
-            fetch(`/shellyapp/fetch-prices/?device_id=${deviceId}`)
-                .then(response => response.json())
-                .then(data => {
-                    console.log(`Price data fetched successfully:`, data);
-                    alert(`Price data fetched succesfully`);
-                })
-                .catch(error => {
-                    console.error(`Error fetching prices: `, error);
-                    alert(`Error fetching prices`);
-                });
+        function updateStatus(text, className) {
+            let statusElement = document.getElementById("deviceStatus");
+            statusElement.textContent = text;
+            statusElement.className = `status-text ${className}`;
         }
 
-        // Extract chart data from table
+        let chartInstance = null;
+
+        function updateDeviceData() {
+            let deviceSelect = document.getElementById("deviceSelect");
+            let selectedOption = deviceSelect.options[deviceSelect.selectedIndex];
+
+            let selectedDeviceId = selectedOption.value; // Get the selected device ID
+            let dayPrice = parseFloat(selectedOption.getAttribute("data-day-price")) || 0;
+            let nightPrice = parseFloat(selectedOption.getAttribute("data-night-price")) || 0;
+            let cheapestHours = selectedOption.getAttribute("data-cheapest-hours") || "";
+            let hoursNeeded = parseInt(selectedOption.getAttribute("data-hours-needed")) || 3;
+
+            // **Update hidden inputs**
+            document.getElementById("dayTransferPrice").value = dayPrice;
+            document.getElementById("nightTransferPrice").value = nightPrice;
+            document.getElementById("cheapestHours").value = cheapestHours;
+            document.getElementById("hoursNeeded").value = hoursNeeded;
+
+            // **Update the transfer prices in the UI**
+            document.getElementById("dayPriceText").innerText = dayPrice.toFixed(2) + " c/kWh";
+            document.getElementById("nightPriceText").innerText = nightPrice.toFixed(2) + " c/kWh";
+
+            console.log("Device Changed:", selectedDeviceId, "Day Price:", dayPrice, "Night Price:", nightPrice); // Debugging
+
+            // **Fetch the device status for the selected device**
+            fetchDeviceStatus(selectedDeviceId);
+
+            // **Update the chart**
+            renderChart();
+        }
+
         function getChartData() {
             let labels = [];
-            let data = [];
+            let totalPrices = [];
+            let cheapestBarHeights = [];
+            let backgroundColors = [];
 
-            document.querySelectorAll('.price-value').forEach(cell => {
-                let price = parseFloat(cell.getAttribute('data-price')); // Get price
-                let timeText = cell.closest('tr').querySelector("td:nth-child(1)").textContent; // Get Start Time
+            let dayTransferPrice = parseFloat(document.getElementById("dayTransferPrice").value);
+            let nightTransferPrice = parseFloat(document.getElementById("nightTransferPrice").value);
+            let cheapestHours = document.getElementById("cheapestHours").value.split(",");
 
-                // Extract only the HH:MM part from the timeText
-                let timeOnly = timeText.split(" ")[1]; // Extracts "HH:MM"
+            let maxPrice = 0; // Track the highest price
 
-                labels.push(timeOnly); // Only push "HH:MM" to chart
-                data.push(price);
+            document.querySelectorAll("tbody tr").forEach(row => {
+                let timeText = row.querySelector("td:nth-child(1)").textContent;
+                let priceText = row.querySelector("td:nth-child(2)").textContent;
+
+                let price = parseFloat(priceText.replace("c/kWh", "").trim());
+                let hour = timeText.split(":")[0] + ":00"; // Extract HH:00 format
+
+                if (!isNaN(price)) {
+                    let totalPrice = (parseInt(hour) >= 7 && parseInt(hour) < 22)
+                        ? (price + dayTransferPrice)
+                        : (price + nightTransferPrice);
+
+                    labels.push(hour);
+                    totalPrices.push(totalPrice);
+
+                    if (totalPrice > maxPrice) {
+                        maxPrice = totalPrice; // Update max price
+                    }
+
+                    // If it's a cheapest hour, make the bar full height
+                    if (cheapestHours.includes(hour.trim())) {
+                        cheapestBarHeights.push(maxPrice * 1.2); // Slightly above max for full coverage
+                        backgroundColors.push("rgba(40, 167, 69, 0.3)"); // Light green for visibility
+                    } else {
+                        cheapestBarHeights.push(0); // No bar
+                        backgroundColors.push("rgba(0, 0, 0, 0)"); // Transparent
+                    }
+                }
             });
 
-            return { labels, data };
+            return { labels, totalPrices, cheapestBarHeights, backgroundColors, maxPrice };
         }
 
-        let chartInstance = null; // Track existing chart instance
-
         function renderChart() {
-            const ctx = document.getElementById('priceChart').getContext('2d');
+            const ctx = document.getElementById('priceChart');
+
+            if (!ctx) {
+                console.warn("Canvas element #priceChart not found!");
+                return;
+            }
+
             const chartData = getChartData();
 
-            // Prevent empty chart errors
-            if (chartData.labels.length === 0 || chartData.data.length === 0) {
-                console.warn("No price data available for chart.");
-                return; // Stop rendering if no data
+            if (!chartData.labels.length) {
+                console.warn("No data for chart!");
+                return;
             }
 
             if (chartInstance) {
-                chartInstance.destroy(); // Destroy old chart if exists
+                chartInstance.destroy();
             }
 
-            chartInstance = new Chart(ctx, {
-                type: 'line',
+            chartInstance = new Chart(ctx.getContext('2d'), {
+                type: 'bar',
                 data: {
                     labels: chartData.labels,
-                    datasets: [{
-                        label: 'Electricity Price (c/kWh)',
-                        data: chartData.data,
-                        borderColor: '#007bff',
-                        backgroundColor: 'rgba(0, 123, 255, 0.2)',
-                        fill: true,
-                        tension: 0.3,
-                        pointRadius: 4,
-                    }]
+                    datasets: [
+                        {
+                            type: 'bar',
+                            label: 'Cheapest Hours',
+                            data: chartData.cheapestBarHeights, // Set full height
+                            backgroundColor: chartData.backgroundColors,
+                            borderWidth: 0,
+                            barPercentage: 1.0,
+                            categoryPercentage: 1.0,
+                        },
+                        {
+                            type: 'line',
+                            label: 'Total Electricity Price (c/kWh)',
+                            data: chartData.totalPrices,
+                            borderColor: '#007bff',
+                            backgroundColor: 'rgba(0, 123, 255, 0.2)',
+                            fill: false,
+                            tension: 0.3,
+                            pointRadius: 4,
+                        }
+                    ]
                 },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
                     scales: {
-                        x: { title: { display: true, text: 'Time (Local)' } },
-                        y: { title: { display: true, text: 'Price (c/kWh)' }, beginAtZero: false }
+                        x: { title: { display: true, text: 'Time (Hour)' } },
+                        y: {
+                            title: { display: true, text: 'Price (c/kWh)' },
+                            beginAtZero: true,
+                            suggestedMax: chartData.maxPrice * 1.3, // Extend for full bar height
+                        }
                     }
                 }
             });
         }
 
+
         document.addEventListener("DOMContentLoaded", function () {
-            renderChart(); // Ensure the chart renders on page load
+            updateDeviceData();
+            renderChart();
+            fetchDeviceStatus();
         });
 
     </script>
 
-    {% endblock %}
+</div>
+{% else %}
+<!-- Show login prompt -->
+<div class="table-container">
+    <h2>Please log in to view electricity prices.</h2>
+    <a href="{% url 'login' %}" class="btn btn-primary">Go to Login</a>
+</div>
+{% endif %}
+
+{% endblock %}
