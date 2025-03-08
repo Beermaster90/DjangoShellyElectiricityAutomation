@@ -27,5 +27,6 @@ urlpatterns = [
          name='login'),
     path('logout/', LogoutView.as_view(next_page='/'), name='logout'),
     path('admin/', admin.site.urls),
+
     path('shellyapp/', include('app.urls')),  # Add this line to include app-specific URLs
 ]

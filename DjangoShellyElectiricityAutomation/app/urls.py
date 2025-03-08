@@ -7,8 +7,7 @@ from .price_views import call_fetch_prices
 from django.contrib.auth import views as auth_views
 
 urlpatterns = [
-    path('', views.index, name='index'),  # Index view
-    # Remove or use a different view for devices if needed
+    path('', views.index, name='index'),  # /shellyapp/ calls index()
 
     path('fetch-device-status/', fetch_device_status, name='fetch_device_status'),  # Specific shelly view
     path('toggle-device-ouput/', toggle_device_output, name='toggle_device_output'),  # page to toggle shelly device output on / off]

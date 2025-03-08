@@ -49,7 +49,7 @@ class ShellyDevice(models.Model):
 class ElectricityPrice(models.Model):
     start_time = models.DateTimeField(default=timezone.now)
     end_time = models.DateTimeField(default=timezone.now)
-    price_kwh = models.DecimalField(max_digits=6, decimal_places=5)
+    price_kwh = models.DecimalField(max_digits=12, decimal_places=5)
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):

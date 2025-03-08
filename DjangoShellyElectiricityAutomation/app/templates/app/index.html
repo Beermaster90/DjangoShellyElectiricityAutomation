@@ -3,15 +3,20 @@
 {% block content %}
 
 <style>
-    /* Highlight the selected row */
-    tr.selected {
-        background-color: #d1e7dd;
+    /* General styling */
+    body {
+        font-family: Arial, sans-serif;
+        background-color: #f8f9fa;
     }
 
-    /* Optional hover effect */
-    tr:hover {
-        background-color: #f2f26f26;
-        cursor: pointer;
+    /* Table styles */
+    .table-container {
+        max-width: 900px;
+        margin: 20px auto;
+        background: white;
+        padding: 15px;
+        border-radius: 8px;
+        box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.1);
     }
 
     table {
@@ -23,11 +28,11 @@
     th, td {
         padding: 12px 15px;
         border: 1px solid #ddd;
-        text-align: left;
+        text-align: center;
     }
 
     th {
-        background-color: #28a745; /* Use the same green color as the button */
+        background-color: #007bff;
         color: white;
         font-weight: bold;
     }
@@ -41,121 +46,183 @@
         cursor: pointer;
     }
 
-    table thead {
-        background-color: #007bff;
-        color: white;
-    }
-
-    h1, h2 {
-        font-family: Arial, sans-serif;
-        color: #333;
-        margin-bottom: 20px;
-    }
-
-    button {
-        background-color: #28a745;
-        color: white;
-        padding: 10px 20px;
-        border: none;
-        border-radius: 5px;
-        cursor: pointer;
-        font-size: 16px;
-    }
-
-        button:hover {
-            background-color: #218838;
-        }
-
-    /* Center the button and table */
-    .content {
-        max-width: 800px;
-        margin: 0 auto;
+    h1 {
         text-align: center;
+        margin-bottom: 20px;
+        color: #333;
     }
 
-        .content h1, .content h2 {
-            text-align: center;
-        }
-
-    .status-circle {
-        display: inline-block;
-        width: 15px;
-        height: 15px;
-        border-radius: 50%;
-        background-color: gray; /* Default color */
+    .chart-container {
+        width: 100%;
+        max-width: 900px;
+        height: 400px;
+        margin: 0 auto;
     }
 
-    .status-0 {
-        background-color: red;
-    }
-
-    .status-1 {
-        background-color: yellow;
-    }
-
-    .status-2 {
-        background-color: green;
+    canvas {
+        max-width: 100%;
+        height: 400px !important; /* Prevent infinite expansion */
     }
 </style>
 
-<button id="fetchDeviceStatusButton" class="btn btn-primary">Debug Fetch Shelly Status</button>
-<button onclick="toggleRelay('on')">Turn On</button>
-<button onclick="toggleRelay('off')">Turn Off</button>
-<button onclick="fetchPrice()">Fetch Prices</button>
+<!-- Chart Container -->
+<div class="chart-container">
+    <canvas id="priceChart"></canvas>
+</div>
 
-<script>
-    const deviceId = '0cdc7ef5a5ec';
-    //fetchDeviceStatusButton button
-    document.getElementById("fetchDeviceStatusButton").addEventListener("click", function () {
-        // You might need to set the device ID dynamically or hard-code it for testing purposes
-        // const deviceId = '0cdc7ef5a5ec';  // Replace with the actual device ID for testing
+<div class="table-container">
+    <h1>Electricity Prices</h1>
+    <table>
+        <thead>
+            <tr>
+                <th>Start Time (Local)</th>
+                <!--<th>End Time (Local)</th>-->
+                <th>Price (c/kWh)</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for price in prices %}
+            <tr>
+                <!-- Store UTC timestamps in data attributes -->
+                <td>{{ price.start_time|date:"Y-m-d H:i T" }}</td>
+                <!--<td>{{ price.end_time|date:"Y-m-d H:i T" }}</td> -->
+                <td class="price-value" data-price="{{ price.price_kwh }}">{{ price.price_kwh }} c/kWh</td>
+            </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="3">No prices available.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
 
-        // Make an AJAX call to fetch the device status
-        fetch(`/shellyapp/fetch-device-status/?device_id=${deviceId}`)
-            .then(response => response.json())  // Parse JSON response
-            .then(data => {
-                console.log("Device status fetched successfully:", data);
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-                // Update the UI with the fetched status
-                //const statusContainer = document.getElementById("status");
-                //statusContainer.innerHTML = JSON.stringify(data, null, 2);  // Display formatted JSON
-                alert("Device Status: " + JSON.stringify(data, null, 2));
-            })
-            .catch(error => {
-                console.error("Error fetching device status:", error);
-                document.getElementById("status").innerText = "Error fetching status";
+    <button id="fetchDeviceStatusButton" class="btn btn-primary">Debug Fetch Shelly Status</button>
+    <button onclick="toggleRelay('on')">Turn On</button>
+    <button onclick="toggleRelay('off')">Turn Off</button>
+    <button onclick="fetchPrice()">Fetch Prices</button>
+
+
+
+    <script>
+        const deviceId = '0cdc7ef5a5ec';
+        //fetchDeviceStatusButton button
+        document.getElementById("fetchDeviceStatusButton").addEventListener("click", function () {
+            // You might need to set the device ID dynamically or hard-code it for testing purposes
+            // const deviceId = '0cdc7ef5a5ec';  // Replace with the actual device ID for testing
+
+            // Make an AJAX call to fetch the device status
+            fetch(`/shellyapp/fetch-device-status/?device_id=${deviceId}`)
+                .then(response => response.json())  // Parse JSON response
+                .then(data => {
+                    console.log("Device status fetched successfully:", data);
+
+                    // Update the UI with the fetched status
+                    //const statusContainer = document.getElementById("status");
+                    //statusContainer.innerHTML = JSON.stringify(data, null, 2);  // Display formatted JSON
+                    alert("Device Status: " + JSON.stringify(data, null, 2));
+                })
+                .catch(error => {
+                    console.error("Error fetching device status:", error);
+                    document.getElementById("status").innerText = "Error fetching status";
+                });
+        });
+
+        function toggleRelay(state) {
+            //const deviceId = 'your_device_id';  // Replace with actual device ID
+
+            fetch(`/shellyapp/toggle-device-ouput/?device_id=${deviceId}&state=${state}`)
+                .then(response => response.json())
+                .then(data => {
+                    console.log(`Device relay turned ${state} successfully:`, data);
+                    alert(`Device relay turned ${state} successfully`);
+                })
+                .catch(error => {
+                    console.error(`Error turning relay ${state}:`, error);
+                    alert(`Error turning relay ${state}`);
+                });
+        }
+
+        function fetchPrice() {
+
+            fetch(`/shellyapp/fetch-prices/?device_id=${deviceId}`)
+                .then(response => response.json())
+                .then(data => {
+                    console.log(`Price data fetched successfully:`, data);
+                    alert(`Price data fetched succesfully`);
+                })
+                .catch(error => {
+                    console.error(`Error fetching prices: `, error);
+                    alert(`Error fetching prices`);
+                });
+        }
+
+        // Extract chart data from table
+        function getChartData() {
+            let labels = [];
+            let data = [];
+
+            document.querySelectorAll('.price-value').forEach(cell => {
+                let price = parseFloat(cell.getAttribute('data-price')); // Get price
+                let timeText = cell.closest('tr').querySelector("td:nth-child(1)").textContent; // Get Start Time
+
+                // Extract only the HH:MM part from the timeText
+                let timeOnly = timeText.split(" ")[1]; // Extracts "HH:MM"
+
+                labels.push(timeOnly); // Only push "HH:MM" to chart
+                data.push(price);
             });
-    });
 
-    function toggleRelay(state) {
-        //const deviceId = 'your_device_id';  // Replace with actual device ID
+            return { labels, data };
+        }
 
-        fetch(`/shellyapp/toggle-device-ouput/?device_id=${deviceId}&state=${state}`)
-            .then(response => response.json())
-            .then(data => {
-                console.log(`Device relay turned ${state} successfully:`, data);
-                alert(`Device relay turned ${state} successfully`);
-            })
-            .catch(error => {
-                console.error(`Error turning relay ${state}:`, error);
-                alert(`Error turning relay ${state}`);
+        let chartInstance = null; // Track existing chart instance
+
+        function renderChart() {
+            const ctx = document.getElementById('priceChart').getContext('2d');
+            const chartData = getChartData();
+
+            // Prevent empty chart errors
+            if (chartData.labels.length === 0 || chartData.data.length === 0) {
+                console.warn("No price data available for chart.");
+                return; // Stop rendering if no data
+            }
+
+            if (chartInstance) {
+                chartInstance.destroy(); // Destroy old chart if exists
+            }
+
+            chartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: chartData.labels,
+                    datasets: [{
+                        label: 'Electricity Price (c/kWh)',
+                        data: chartData.data,
+                        borderColor: '#007bff',
+                        backgroundColor: 'rgba(0, 123, 255, 0.2)',
+                        fill: true,
+                        tension: 0.3,
+                        pointRadius: 4,
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: { title: { display: true, text: 'Time (Local)' } },
+                        y: { title: { display: true, text: 'Price (c/kWh)' }, beginAtZero: false }
+                    }
+                }
             });
-    }
+        }
 
-    function fetchPrice() {
+        document.addEventListener("DOMContentLoaded", function () {
+            renderChart(); // Ensure the chart renders on page load
+        });
 
-        fetch(`/shellyapp/fetch-prices/?device_id=${deviceId}`)
-            .then(response => response.json())
-            .then(data => {
-                console.log(`Price data fetched successfully:`, data);
-                alert(`Price data fetched succesfully`);
-            })
-            .catch(error => {
-                console.error(`Error fetching prices: `, error);
-                alert(`Error fetching prices`);
-            });
-    }
+    </script>
 
-</script>
-
-{% endblock %}
+    {% endblock %}
