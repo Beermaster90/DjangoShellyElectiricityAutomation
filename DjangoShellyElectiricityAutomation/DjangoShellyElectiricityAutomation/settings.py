@@ -111,3 +111,12 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/2.1/howto/static-files/
 STATIC_URL = '/static/'
 STATIC_ROOT = posixpath.join(*(BASE_DIR.split(os.path.sep) + ['static']))
+
+
+INSTALLED_APPS += ['django_cron']
+CRON_CLASSES = [
+    "app.cron.FetchElectricityPricesCronJob",
+    "app.cron.ControlShellyDevicesCronJob",
+]
+
+DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
