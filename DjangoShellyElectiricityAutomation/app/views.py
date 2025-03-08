@@ -56,7 +56,7 @@ def get_common_context(request):
 
     day_transfer_price = selected_device.day_transfer_price if selected_device else 0
     night_transfer_price = selected_device.night_transfer_price if selected_device else 0
-    hours_needed = selected_device.hours_needed if selected_device and hasattr(selected_device, 'hours_needed') else 3
+    hours_needed = selected_device.run_hours_per_day if selected_device and hasattr(selected_device, 'run_hours_per_day') else 0
 
     # Compute cheapest hours per **each device**
     for device in devices:
@@ -73,6 +73,7 @@ def get_common_context(request):
         "selected_device": selected_device,
         "day_transfer_price": day_transfer_price,
         "night_transfer_price": night_transfer_price,
+        "hours_needed": hours_needed,
         "current_hour": current_hour,  # Ensure this is in the context
         "title": "Landing Page",
         "year": datetime.now().year,

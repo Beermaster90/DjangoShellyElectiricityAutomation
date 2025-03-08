@@ -104,7 +104,7 @@
         <option value="{{ device.device_id }}"
                 data-day-price="{{ device.day_transfer_price }}"
                 data-night-price="{{ device.night_transfer_price }}"
-                data-hours-needed="{{ device.hours_needed }}"
+                data-hours-needed="{{ device.run_hours_per_day }}"
                 data-cheapest-hours="{{ device.cheapest_hours|join:',' }}">
             {{ device.familiar_name }}
         </option>
@@ -125,10 +125,12 @@
     <input type="hidden" id="hoursNeeded" value="0">
     <!-- Transfer Prices Display -->
     <div class="table-container">
-        <h2>Transfer Prices</h2>
+        <h2>Device Information</h2>
         <p><strong>Day Transfer Price:</strong> <span id="dayPriceText">-</span> c/kWh (07:00 - 21:59)</p>
         <p><strong>Night Transfer Price:</strong> <span id="nightPriceText">-</span> c/kWh (22:00 - 06:59)</p>
+        <p><strong>Defined Hours to Run:</strong> <span id="hoursNeededText">-</span></p>
     </div>
+
     <!-- Chart Container -->
     <div class="chart-container">
         <canvas id="priceChart"></canvas>
@@ -216,7 +218,7 @@
             let dayPrice = parseFloat(selectedOption.getAttribute("data-day-price")) || 0;
             let nightPrice = parseFloat(selectedOption.getAttribute("data-night-price")) || 0;
             let cheapestHours = selectedOption.getAttribute("data-cheapest-hours") || "";
-            let hoursNeeded = parseInt(selectedOption.getAttribute("data-hours-needed")) || 3;
+            let hoursNeeded = parseInt(selectedOption.getAttribute("data-hours-needed")) || 0;
 
             // **Update hidden inputs**
             document.getElementById("dayTransferPrice").value = dayPrice;
@@ -227,8 +229,9 @@
             // **Update the transfer prices in the UI**
             document.getElementById("dayPriceText").innerText = dayPrice.toFixed(2) + " c/kWh";
             document.getElementById("nightPriceText").innerText = nightPrice.toFixed(2) + " c/kWh";
+            document.getElementById("hoursNeededText").innerText = hoursNeeded + " h";
 
-            console.log("Device Changed:", selectedDeviceId, "Day Price:", dayPrice, "Night Price:", nightPrice); // Debugging
+           // console.log("Device Changed:", selectedDeviceId, "Day Price:", dayPrice, "Night Price:", nightPrice); // Debugging
 
             // **Fetch the device status for the selected device**
             fetchDeviceStatus(selectedDeviceId);
