@@ -2,7 +2,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 from django_apscheduler.jobstores import DjangoJobStore
 from django.db import connection
-from app.tasks import fetch_electricity_prices,control_shelly_devices,assign_cheapest_hours
+from app.tasks import fetch_electricity_prices,control_shelly_devices
 import logging
 
 logger = logging.getLogger(__name__)
@@ -32,15 +32,6 @@ def start_scheduler():
         control_shelly_devices,
         trigger=CronTrigger(minute="1,16,31,46"),  # Runs at these exact minutes
         id="control_shelly",
-        max_instances=1,
-        replace_existing=True,
-    )
-
-    #Assign the cheapest hours in db
-    scheduler.add_job(
-        assign_cheapest_hours,
-        trigger=CronTrigger(hour="*", minute=1),
-        id="assign_cheapest_hours",
         max_instances=1,
         replace_existing=True,
     )

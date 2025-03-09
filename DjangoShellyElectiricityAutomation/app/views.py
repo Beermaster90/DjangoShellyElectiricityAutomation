@@ -54,12 +54,12 @@ def get_common_context(request):
 
     now = datetime.now()  # No need for timezone conversion
     start_range = now - timedelta(hours=12)
-    end_range = now + timedelta(hours=12)
+    end_range = now + timedelta(hours=24)
 
     prices = list(
         ElectricityPrice.objects.filter(start_time__range=(start_range, end_range))
         .order_by("start_time")
-        .values("start_time", "end_time", "price_kwh")
+        .values("start_time", "end_time", "price_kwh","assigned_devices")
     )
 
 

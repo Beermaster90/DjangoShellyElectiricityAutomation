@@ -59,66 +59,55 @@ def call_fetch_prices(request):
 
 def save_prices_for_period(period_start_str, price_points):
     """
-    Save price points to the database, converting from e/MWh to cents/kWh.
+    Save price points to the database, converting from €/MWh to cents/kWh.
     
-    period_start_str: e.g. "202503070745" (format: YYYYMMDDHHMM)
-    price_points: list of dicts with keys 'position' and 'price' (in e/MWh)
+    Only calls `set_cheapest_hours()` if new price entries were added.
     """
-    # Parse the period start time using the provided format
     period_start = datetime.strptime(period_start_str, "%Y%m%d%H%M")
-    
-    # Conversion factor: 1 €/MWh = 0.1 c/kWh
     conversion_factor = Decimal("0.1")
-    
+
+    new_entries_added = False  # Track if we add any new entries
+
     for point in price_points:
         position = point.get('position')
         try:
-            # Convert the price to a Decimal from €/MWh
             price_e_per_mwh = Decimal(str(point.get('price')))
         except InvalidOperation:
-            # Skip this price if conversion fails
-            continue
+            continue  # Skip invalid price entries
         
-        # Convert price from €/MWh to c/kWh
         price_c_per_kwh = price_e_per_mwh * conversion_factor
-        
-        # Calculate the exact hourly interval
         start_time = period_start + timedelta(hours=position - 1)
         end_time = start_time + timedelta(hours=1)
-        
-        # Update or create the ElectricityPrice record
-        ElectricityPrice.objects.update_or_create(
+
+        # Check if this price record already exists
+        obj, created = ElectricityPrice.objects.update_or_create(
             start_time=start_time,
             end_time=end_time,
-            defaults={'price_kwh': price_c_per_kwh}  # Now stored in c/kWh directly
+            defaults={'price_kwh': price_c_per_kwh}  # Store as c/kWh
         )
 
+        if created:
+            new_entries_added = True  # Mark that we inserted new data
+
+    # **Only call `set_cheapest_hours()` if new prices were added**
+    if new_entries_added:
+        print("New prices inserted. Calling set_cheapest_hours()...")
+        log_device_event(None, "New electricity prices fetched. Updating cheapest hours.", "INFO")
+        set_cheapest_hours()
+    else:
+        print("No new price data inserted. Skipping cheapest hours update.")
+        log_device_event(None, "No new prices detected. Skipping cheapest hour assignment.", "INFO")
+
 def set_cheapest_hours():
-
-    #Assigns devices to the cheapest hours for the next 24 hours.
-
+    """Assigns devices to the cheapest hours for the next 24 hours."""
     try:
-
-        current_time = now()
+        current_time = datetime.now()
         print("Current Time:", current_time)
 
-        start_time = current_time.replace(hour=0, minute=0, second=0, microsecond=0)
-        end_time = start_time + timedelta(days=1)
-        last_24_hours = current_time - timedelta(hours=24)
-
-        print("Checking if an assignment exists in the past 24 hours...")
-        recent_assignment = ElectricityPrice.objects.filter(last_assigned_at__gte=last_24_hours).exists()
-        print("Recent Assignment Exists:", recent_assignment)
-
-        if recent_assignment:
-            print("Assignments already exist. Skipping reassignment.")
-            log_device_event(None, "Assignments already made in the past 24 hours. Skipping reassignment.", "INFO")
-            return
-
         print("Fetching electricity prices...")
-        prices = list(ElectricityPrice.objects.filter(start_time__range=(start_time, end_time))
+        prices = list(ElectricityPrice.objects.filter(start_time__gte=current_time)
                       .order_by("start_time")
-                      .values("start_time", "price_kwh", "id", "last_assigned_at"))
+                      .values("start_time", "price_kwh", "id", "assigned_devices"))
 
         print("Found", len(prices), "prices.")
 
@@ -127,7 +116,7 @@ def set_cheapest_hours():
             log_device_event(None, "No electricity prices available. Skipping assignment.", "WARN")
             return
 
-        device_assignments = {entry['id']: [] for entry in prices}
+        device_assignments = {entry["id"]: set(entry["assigned_devices"].split(",")) if entry["assigned_devices"] else set() for entry in prices}
         devices = ShellyDevice.objects.all()
 
         print("Found", len(devices), "devices.")
@@ -143,9 +132,11 @@ def set_cheapest_hours():
             )
 
             for hour in cheapest_hours:
-                price_entry = next((p for p in prices if p['start_time'] == hour), None)
+                price_entry = next((p for p in prices if p["start_time"] == hour), None)
                 if price_entry:
-                    device_assignments[price_entry['id']].append(str(device.device_id))
+                    # Ensure the device is not already assigned to this slot
+                    if str(device.device_id) not in device_assignments[price_entry["id"]]:
+                        device_assignments[price_entry["id"]].add(str(device.device_id))
 
         # Update database with assigned devices
         for price_id, assigned in device_assignments.items():
@@ -158,8 +149,9 @@ def set_cheapest_hours():
         log_device_event(None, "Assignments successfully updated at " + str(current_time), "INFO")
 
     except Exception as e:
-        print("Error in assign_cheapest_hours:", e)
-        log_device_event(None, "Error in assign_cheapest_hours: " + str(e), "ERROR")
+        print("Error in set_cheapest_hours:", e)
+        log_device_event(None, "Error in set_cheapest_hours: " + str(e), "ERROR")
+
 
 
 def get_cheapest_hours(prices, day_transfer_price, night_transfer_price, hours_needed):
