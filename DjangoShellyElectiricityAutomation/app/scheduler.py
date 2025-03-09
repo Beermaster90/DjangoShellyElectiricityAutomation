@@ -30,7 +30,7 @@ def start_scheduler():
     # Schedule the Shelly device control task (Every 15 minutes)
     scheduler.add_job(
         control_shelly_devices,
-        trigger=CronTrigger(hour="*", minute=15),
+        trigger=CronTrigger(minute="1,16,31,46"),  # Runs at these exact minutes
         id="control_shelly",
         max_instances=1,
         replace_existing=True,

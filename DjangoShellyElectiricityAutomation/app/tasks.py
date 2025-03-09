@@ -1,4 +1,4 @@
-import requests
+import requests,time
 from datetime import datetime,timedelta
 from django.urls import reverse
 from django.utils.timezone import now
@@ -37,8 +37,9 @@ def control_shelly_devices():
     Loops through all Shelly devices and toggles them based on pre-assigned cheapest hours.
     """
     try:
-        current_time = now()
-        current_hour = current_time.hour
+
+        current_time = datetime.now()  # Local time as an integer
+        current_hour = datetime.now().hour  # Local time as an integer
 
         print(f"Checking devices for {current_time} (Hour: {current_hour})")  # Debugging log
 
@@ -93,6 +94,7 @@ def control_shelly_devices():
 
                 if isinstance(response, JsonResponse) and response.status_code == 200:
                     log_device_event(device, "Device turned ON", "INFO")
+                    time.sleep(2) #Just in case 2 secs sleep if too often api calls
                 else:
                     log_device_event(device, f"Failed to turn ON device. Response: {response.content}", "ERROR")
 

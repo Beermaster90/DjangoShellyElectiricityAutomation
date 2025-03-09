@@ -30,7 +30,7 @@ class ShellyService:
         }
 
         try:
-            response = requests.get(url, params=params)
+            response = requests.get(url, params=params, timeout=5)
             response.raise_for_status()
             status_data = response.json()
 
@@ -64,7 +64,7 @@ class ShellyService:
         }
 
         try:
-            response = requests.post(url, params=params, data=data)
+            response = requests.post(url, params=params, data=data, timeout=5)
             response.raise_for_status()
             return response.json()  # Parse JSON response
         except requests.RequestException as e:
