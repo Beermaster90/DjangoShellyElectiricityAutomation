@@ -1,14 +1,20 @@
 import requests
-from datetime import datetime
+from datetime import datetime,timedelta
 from django.urls import reverse
 from django.utils.timezone import now
 from django.conf import settings
 from django.test import RequestFactory
 from django.http import JsonResponse
-from app.models import ShellyDevice, ElectricityPrice
+from app.models import ShellyDevice, ElectricityPrice, DeviceLog  # Include DeviceLog
 from app.shelly_views import toggle_device_output, fetch_device_status
 from app.services.shelly_service import ShellyService
-from app.price_views import call_fetch_prices
+from app.price_views import call_fetch_prices,get_cheapest_hours,set_cheapest_hours
+
+def log_device_event(device, message, status="INFO"):
+    """
+    Logs events related to a Shelly device or system-wide events.
+    """
+    DeviceLog.objects.create(device=device if device else None, message=message, status=status)
 
 
 def fetch_electricity_prices():
@@ -19,66 +25,95 @@ def fetch_electricity_prices():
         response = call_fetch_prices(None)  # Call the view function directly
 
         if isinstance(response, JsonResponse) and response.status_code == 200:
-            print("Electricity prices fetched successfully.")
+            log_device_event(None, "Electricity prices fetched successfully.", "INFO")
         else:
-            print(f"Failed to fetch electricity prices. Response: {response.content}")
+            log_device_event(None, f"Failed to fetch electricity prices. Response: {response.content}", "ERROR")
 
     except Exception as e:
-        print(f"Error calling fetch-prices: {e}")
-
+        log_device_event(None, f"Error calling fetch-prices: {e}", "ERROR")
 
 def control_shelly_devices():
     """
-    Loops through all Shelly devices, fetches their current status, and toggles them based on electricity price.
+    Loops through all Shelly devices and toggles them based on pre-assigned cheapest hours.
     """
     try:
-        # Get the cheapest electricity price for the day
-        cheapest_price = ElectricityPrice.objects.order_by("price_kwh").first()
+        current_time = now()
+        current_hour = current_time.hour
 
-        if not cheapest_price:
-            print("No electricity price data available.")
+        print(f"Checking devices for {current_time} (Hour: {current_hour})")  # Debugging log
+
+        # Fetch all electricity prices for the current hour
+        active_prices = ElectricityPrice.objects.filter(start_time__hour=current_hour)
+
+        if not active_prices:
+            print("No active price entries for this hour.")
+            log_device_event(None, "No active price entries for this hour.", "INFO")
             return
 
-        current_hour = now().hour
-        device_list = ShellyDevice.objects.all()
+        # Fetch all devices
+        devices = ShellyDevice.objects.all()
 
-        for device in device_list:
-            if not device.shelly_api_key:
-                print(f"Skipping device {device.device_id} (Missing API Key)")
-                continue  # Skip this device if no auth key is present
+        for device in devices:
+            print(f"Processing device: {device.device_id} ({device.familiar_name})")
 
-            # Fetch the current status of the device before toggling
-            shelly_service = ShellyService(device_id=device.device_id)
-            device_status = shelly_service.get_device_status(device.device_id)
+            assigned = False  # Flag to check if device is scheduled for this hour
+
+            # Check if this device ID exists in any price entry
+            for price_entry in active_prices:
+                if not price_entry.assigned_devices:
+                    continue  # Skip empty assignments
+
+                assigned_devices = price_entry.assigned_devices.split(",")  # Convert to list
+
+                if str(device.device_id) in assigned_devices:
+                    assigned = True
+                    break  # No need to check further
+
+            if not assigned:
+                print(f"Device {device.familiar_name} is NOT assigned for this hour.")
+                log_device_event(device, f"Device is NOT assigned for this hour.", "INFO")
+                continue  # Skip this device
+
+            # Device is assigned, check if it is already running
+            shelly_service = ShellyService(device.device_id)
+            device_status = shelly_service.get_device_status()
 
             if "error" in device_status:
-                print(f"Error fetching status for Device {device.device_id}: {device_status['error']}")
-                continue  # Skip this device if the status couldn't be retrieved
+                log_device_event(device, f"Error fetching status: {device_status['error']}", "ERROR")
+                continue  # Skip if status fetch failed
 
-            is_online = device_status.get("data", {}).get("online", False)
-            switch_data = device_status.get("data", {}).get("device_status", {}).get("switch:0", {})
-            is_running = switch_data.get("output", False)  # Check if it's already running
+            is_running = device_status.get("data", {}).get("device_status", {}).get("switch:0", {}).get("output", False)
 
-            print(f"Device {device.device_id} Status: Online={is_online}, Running={is_running}")
+            if not is_running:
+                # Toggle device ON
+                print(f"Toggling ON device {device.device_id} ({device.familiar_name})")
+                request_factory = RequestFactory()
+                request = request_factory.get("/toggle-device-output/", {"device_id": device.device_id, "state": "on"})
+                response = toggle_device_output(request)
 
-            # Determine if we should toggle the device ON or OFF
-            if current_hour == cheapest_price.start_time.hour and not is_running:
-                state = "on"
-            elif current_hour != cheapest_price.start_time.hour and is_running:
-                state = "off"
+                if isinstance(response, JsonResponse) and response.status_code == 200:
+                    log_device_event(device, "Device turned ON", "INFO")
+                else:
+                    log_device_event(device, f"Failed to turn ON device. Response: {response.content}", "ERROR")
+
             else:
-                print(f"Device {device.device_id} is already in the correct state.")
-                continue  # No need to toggle
-
-            # Send request to toggle the device via Shelly Cloud API
-            request_factory = RequestFactory()
-            request = request_factory.get("/toggle-device-output/", {"device_id": device.device_id, "state": state})
-            response = toggle_device_output(request)
-
-            if isinstance(response, JsonResponse) and response.status_code == 200:
-                print(f"Device {device.device_id} toggled {state} successfully.")
-            else:
-                print(f"Failed to toggle device {device.device_id}. Response: {response.content}")
+                print(f"Device {device.familiar_name} is already running. No action needed.")
+                log_device_event(device, "Device already ON, no action needed.", "INFO")
 
     except Exception as e:
-        print(f"Error controlling Shelly devices: {e}")
+        log_device_event(None, f"Error controlling Shelly devices: {e}", "ERROR")
+
+
+
+def assign_cheapest_hours():
+    """
+    Calls set_cheapest_hours() to assign devices to the cheapest hours.
+    This avoids duplication and ensures logic is maintained in one place.
+    """
+    print("assign_cheapest_hours() is calling set_cheapest_hours()...")
+    set_cheapest_hours()
+    print("assign_cheapest_hours() completed.")
+
+
+
+

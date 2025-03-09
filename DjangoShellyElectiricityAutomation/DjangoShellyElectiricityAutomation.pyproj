@@ -33,7 +33,7 @@
     <EnableUnmanagedDebugging>false</EnableUnmanagedDebugging>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Include="app\cron.py" />
+    <Compile Include="app\apps.py" />
     <Compile Include="app\forms.py" />
     <Compile Include="app\models.py" />
     <Compile Include="app\admin.py">
@@ -42,6 +42,7 @@
     <Compile Include="app\price_views.py">
       <SubType>Code</SubType>
     </Compile>
+    <Compile Include="app\scheduler.py" />
     <Compile Include="app\services\electricity_service.py">
       <SubType>Code</SubType>
     </Compile>
@@ -86,7 +87,6 @@
     <Content Include="DjangoShellyElectiricityAutomation\__pycache__\wsgi.cpython-312.pyc" />
     <Content Include="DjangoShellyElectiricityAutomation\__pycache__\__init__.cpython-312.pyc" />
     <Content Include="requirements.txt" />
-    <Content Include="db.sqlite3" />
     <Content Include="app\static\app\content\bootstrap.css" />
     <Content Include="app\static\app\content\bootstrap.min.css" />
     <Content Include="app\static\app\content\site.css" />

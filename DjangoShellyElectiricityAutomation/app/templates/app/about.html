@@ -5,6 +5,61 @@
 <h2>{{ title }}.</h2>
 <h3>{{ message }}</h3>
 
-<p>Use this area to provide additional information.</p>
+<style>
+    table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 20px;
+    }
+
+    th, td {
+        border: 1px solid black;
+        padding: 10px;
+        text-align: left;
+    }
+
+    th {
+        background-color: #f4f4f4;
+    }
+
+    .INFO {
+        color: green;
+    }
+
+    .WARN {
+        color: orange;
+    }
+
+    .ERROR {
+        color: red;
+    }
+</style>
+
+<h1>Device Logs</h1>
+
+<table>
+    <thead>
+        <tr>
+            <th>Timestamp</th>
+            <th>Device</th>
+            <th>Status</th>
+            <th>Message</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for log in logs %}
+        <tr>
+            <td>{{ log.created_at }}</td>
+            <td>{{ log.device.familiar_name|default:"N/A" }}</td>
+            <td class="{{ log.status }}">{{ log.status }}</td>
+            <td>{{ log.message }}</td>
+        </tr>
+        {% empty %}
+        <tr>
+            <td colspan="4">No logs available.</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
 
 {% endblock %}

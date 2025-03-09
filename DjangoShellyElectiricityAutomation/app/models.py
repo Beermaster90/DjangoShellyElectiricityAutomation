@@ -51,9 +51,12 @@ class ElectricityPrice(models.Model):
     end_time = models.DateTimeField(default=timezone.now)
     price_kwh = models.DecimalField(max_digits=12, decimal_places=5)
     created_at = models.DateTimeField(auto_now_add=True)
+    assigned_devices = models.TextField(blank=True, null=True)  # New column to store device IDs
+    last_assigned_at = models.DateTimeField(blank=True, null=True)
 
     def __str__(self):
         return f"{self.price_kwh} e/kWh from {self.start_time} to {self.end_time}"
+
 
 class DeviceLog(models.Model):
     STATUS_CHOICES = [
@@ -62,10 +65,15 @@ class DeviceLog(models.Model):
         ('ERROR', 'Error'),
     ]
 
-    device = models.ForeignKey(ShellyDevice, on_delete=models.CASCADE)
-    message = models.TextField()  # To store the log message
+    device = models.ForeignKey(
+        'ShellyDevice',
+        on_delete=models.CASCADE,
+        null=True,  # Allow NULL values
+        blank=True   # Allow empty values in forms
+    )
+    message = models.TextField()
     status = models.CharField(max_length=5, choices=STATUS_CHOICES, default='INFO')
-    created_at = models.DateTimeField(auto_now_add=True)  # Automatically store log creation time
+    created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return f"Log for {self.device.familiar_name} - {self.status}"
+        return f"Log for {self.device.familiar_name if self.device else 'System'} - {self.status}"

@@ -84,7 +84,7 @@ admin.site.register(ShellyDevice, ShellyDeviceAdmin)
 
 @admin.register(ElectricityPrice)
 class ElectricityPriceAdmin(admin.ModelAdmin):
-    list_display = ('start_time', 'end_time', 'price_kwh', 'created_at')  # Columns to display in the admin list
+    list_display = ('start_time', 'end_time', 'price_kwh', 'created_at', 'assigned_devices','last_assigned_at')  # Columns to display in the admin list
     search_fields = ('start_time', 'end_time')  # Allow searching by these fields
     list_filter = ('start_time', 'end_time')  # Filters for narrowing down records
     ordering = ('-start_time',)  # Order by start time, descending

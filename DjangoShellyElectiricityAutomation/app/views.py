@@ -1,9 +1,11 @@
 from datetime import datetime
 from django.shortcuts import render
 from django.http import HttpRequest
-from .models import ElectricityPrice,ShellyDevice  # Import your models
+from .models import ElectricityPrice,ShellyDevice,DeviceLog  # Import your models
 from .price_views import get_cheapest_hours
 from django.contrib.auth.decorators import login_required
+from django.utils import timezone
+from datetime import timedelta
 
 def home(request):
     """Renders the home page."""
@@ -33,19 +35,33 @@ def contact(request):
 def about(request):
     """Renders the about page."""
     assert isinstance(request, HttpRequest)
+    # Get Logs
+    logs = DeviceLog.objects.order_by("-created_at")[:50]  # Get last 50 logs
     return render(
         request,
         'app/about.html',
         {
-            'title':'About',
-            'message':'Your application description page.',
+            'title':'Logs',
+            'message':'SHOW ME THE LOGS',
             'year': datetime.now().year,
+            "logs": logs,
         }
     )
 
 def get_common_context(request):
     """Helper function to fetch shared context data for views."""
-    prices = list(ElectricityPrice.objects.all().order_by("start_time").values("start_time", "price_kwh"))
+
+
+    now = datetime.now()  # No need for timezone conversion
+    start_range = now - timedelta(hours=12)
+    end_range = now + timedelta(hours=12)
+
+    prices = list(
+        ElectricityPrice.objects.filter(start_time__range=(start_range, end_range))
+        .order_by("start_time")
+        .values("start_time", "end_time", "price_kwh")
+    )
+
 
     devices = ShellyDevice.objects.all()
     selected_device = devices.first()
@@ -74,7 +90,7 @@ def get_common_context(request):
         "day_transfer_price": day_transfer_price,
         "night_transfer_price": night_transfer_price,
         "hours_needed": hours_needed,
-        "current_hour": current_hour,  # Ensure this is in the context
+        "current_hour": current_hour, 
         "title": "Landing Page",
         "year": datetime.now().year,
     }

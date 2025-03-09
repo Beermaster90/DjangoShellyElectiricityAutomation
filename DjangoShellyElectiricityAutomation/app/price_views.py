@@ -2,10 +2,18 @@
 from django.http import JsonResponse
 from decimal import Decimal, InvalidOperation
 from datetime import datetime, timedelta
-from .models import ElectricityPrice
+from .models import ElectricityPrice, ShellyDevice, DeviceLog
 import pandas as pd
 from entsoe import EntsoePandasClient
 from django.shortcuts import render
+from django.utils.timezone import now
+from datetime import timedelta
+
+def log_device_event(device, message, status="INFO"):
+    """
+    Logs events related to a Shelly device or system-wide events.
+    """
+    DeviceLog.objects.create(device=device if device else None, message=message, status=status)
 
 def call_fetch_prices(request):
     api_key = "a028771e-97fc-4c26-af02-4eaf6f8a7d49"  # Replace with your actual ENTSO-E API key
@@ -85,9 +93,78 @@ def save_prices_for_period(period_start_str, price_points):
             defaults={'price_kwh': price_c_per_kwh}  # Now stored in c/kWh directly
         )
 
+def set_cheapest_hours():
+
+    #Assigns devices to the cheapest hours for the next 24 hours.
+
+    try:
+
+        current_time = now()
+        print("Current Time:", current_time)
+
+        start_time = current_time.replace(hour=0, minute=0, second=0, microsecond=0)
+        end_time = start_time + timedelta(days=1)
+        last_24_hours = current_time - timedelta(hours=24)
+
+        print("Checking if an assignment exists in the past 24 hours...")
+        recent_assignment = ElectricityPrice.objects.filter(last_assigned_at__gte=last_24_hours).exists()
+        print("Recent Assignment Exists:", recent_assignment)
+
+        if recent_assignment:
+            print("Assignments already exist. Skipping reassignment.")
+            log_device_event(None, "Assignments already made in the past 24 hours. Skipping reassignment.", "INFO")
+            return
+
+        print("Fetching electricity prices...")
+        prices = list(ElectricityPrice.objects.filter(start_time__range=(start_time, end_time))
+                      .order_by("start_time")
+                      .values("start_time", "price_kwh", "id", "last_assigned_at"))
+
+        print("Found", len(prices), "prices.")
+
+        if not prices:
+            print("No electricity prices available. Skipping assignment.")
+            log_device_event(None, "No electricity prices available. Skipping assignment.", "WARN")
+            return
+
+        device_assignments = {entry['id']: [] for entry in prices}
+        devices = ShellyDevice.objects.all()
+
+        print("Found", len(devices), "devices.")
+
+        for device in devices:
+            print("Processing device:", device.device_id, "(", device.familiar_name, ")")
+
+            cheapest_hours = get_cheapest_hours(
+                prices,
+                device.day_transfer_price,
+                device.night_transfer_price,
+                device.run_hours_per_day
+            )
+
+            for hour in cheapest_hours:
+                price_entry = next((p for p in prices if p['start_time'] == hour), None)
+                if price_entry:
+                    device_assignments[price_entry['id']].append(str(device.device_id))
+
+        # Update database with assigned devices
+        for price_id, assigned in device_assignments.items():
+            ElectricityPrice.objects.filter(id=price_id).update(
+                assigned_devices=",".join(assigned),
+                last_assigned_at=current_time
+            )
+
+        print("Assignments successfully updated at", current_time)
+        log_device_event(None, "Assignments successfully updated at " + str(current_time), "INFO")
+
+    except Exception as e:
+        print("Error in assign_cheapest_hours:", e)
+        log_device_event(None, "Error in assign_cheapest_hours: " + str(e), "ERROR")
+
+
 def get_cheapest_hours(prices, day_transfer_price, night_transfer_price, hours_needed):
     """
-    Determine the cheapest hours to run a device based on electricity prices.
+    Determine the cheapest hours to run a device based on its own electricity prices.
 
     :param prices: List of dictionaries with 'start_time' and 'price_kwh'
     :param day_transfer_price: Additional price during the day (c/kWh)
@@ -107,7 +184,8 @@ def get_cheapest_hours(prices, day_transfer_price, night_transfer_price, hours_n
     # Sort by total price (ascending order)
     sorted_prices = sorted(prices, key=lambda x: x['total_price'])
 
-    # Select **exactly** `hours_needed` hours (Fixes incorrect hour count)
+    # Select **exactly** `hours_needed` hours
     cheapest_slots = [entry['start_time'] for entry in sorted_prices[:hours_needed]]
 
     return cheapest_slots
+

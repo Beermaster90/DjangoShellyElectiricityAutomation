@@ -34,4 +34,5 @@ tzdata
 urllib3
 vine
 wcwidth
-django-cron
+django-apscheduler
+
