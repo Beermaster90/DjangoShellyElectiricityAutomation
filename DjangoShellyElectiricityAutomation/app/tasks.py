@@ -35,19 +35,16 @@ def control_shelly_devices():
     Loops through all Shelly devices and toggles them based on pre-assigned cheapest hours.
     """
     try:
-
-        current_time = datetime.now()  # Local time as an integer
-        current_hour = datetime.now().hour  # Local time as an integer
+        current_time = datetime.now()  # Local time
+        current_hour = current_time.hour
 
         print(f"Checking devices for {current_time} (Hour: {current_hour})")  # Debugging log
 
-        # Fetch all electricity prices for the current hour
-        active_prices = ElectricityPrice.objects.filter(start_time__hour=current_hour)
-
-        if not active_prices:
-            print("No active price entries for this hour.")
-            log_device_event(None, "No active price entries for this hour.", "INFO")
-            return
+        # Fetch ElectricityPrice entries for the current hour
+        active_prices = ElectricityPrice.objects.filter(
+            start_time__hour=current_hour,
+            start_time__date=current_time.date()
+        )
 
         # Fetch all devices
         devices = ShellyDevice.objects.all()
@@ -55,14 +52,14 @@ def control_shelly_devices():
         for device in devices:
             print(f"Processing device: {device.device_id} ({device.familiar_name})")
 
-            assigned = False  # Flag to check if device is scheduled for this hour
+            assigned = False  # Flag to check if the device is assigned
 
-            # Check if this device ID exists in any price entry
+            # Loop through electricity prices and check if the device is assigned
             for price_entry in active_prices:
                 if not price_entry.assigned_devices:
-                    continue  # Skip empty assignments
+                    continue  # Skip if there are no assigned devices
 
-                assigned_devices = price_entry.assigned_devices.split(",")  # Convert to list
+                assigned_devices = [x.strip() for x in price_entry.assigned_devices.split(",")]  # Convert to list and strip spaces
 
                 if str(device.device_id) in assigned_devices:
                     assigned = True
@@ -70,62 +67,45 @@ def control_shelly_devices():
 
             if not assigned:
                 print(f"Device {device.familiar_name} is NOT assigned for this hour. Stopping it.")
-            
-                # Fetch current status
-                shelly_service = ShellyService(device.device_id)
-                device_status = shelly_service.get_device_status()
-            
-                if "error" in device_status:
-                    log_device_event(device, f"Error fetching status: {device_status['error']}", "ERROR")
-                    continue  # Skip if status fetch failed
-            
-                is_running = device_status.get("data", {}).get("device_status", {}).get("switch:0", {}).get("output", False)
-            
-                if is_running:
-                    print(f"Toggling OFF device {device.device_id} ({device.familiar_name})")
-                    request_factory = RequestFactory()
-                    request = request_factory.get("/toggle-device-output/", {"device_id": device.device_id, "state": "off"})
-                    response = toggle_device_output(request)
-            
-                    if isinstance(response, JsonResponse) and response.status_code == 200:
-                        log_device_event(device, "Device turned OFF", "INFO")
-                        time.sleep(2) #Just in case 2 secs sleep if too often api calls
-                    else:
-                        log_device_event(device, f"Failed to turn OFF device. Response: {response.content}", "ERROR")
-                else:
-                    log_device_event(device, f"Device is already OFF. No action needed.", "INFO")
-            
+                toggle_shelly_device(device, "off")
                 continue  # Skip further checks for this device
 
             # Device is assigned, check if it is already running
-            shelly_service = ShellyService(device.device_id)
-            device_status = shelly_service.get_device_status()
-
-            if "error" in device_status:
-                log_device_event(device, f"Error fetching status: {device_status['error']}", "ERROR")
-                continue  # Skip if status fetch failed
-
-            is_running = device_status.get("data", {}).get("device_status", {}).get("switch:0", {}).get("output", False)
-
-            if not is_running:
-                # Toggle device ON
-                print(f"Toggling ON device {device.device_id} ({device.familiar_name})")
-                request_factory = RequestFactory()
-                request = request_factory.get("/toggle-device-output/", {"device_id": device.device_id, "state": "on"})
-                response = toggle_device_output(request)
-
-                if isinstance(response, JsonResponse) and response.status_code == 200:
-                    log_device_event(device, "Device turned ON", "INFO")
-                    time.sleep(2) #Just in case 2 secs sleep if too often api calls
-                else:
-                    log_device_event(device, f"Failed to turn ON device. Response: {response.content}", "ERROR")
-
-            else:
-                print(f"Device {device.familiar_name} is already running. No action needed.")
-                log_device_event(device, "Device already ON, no action needed.", "INFO")
+            toggle_shelly_device(device, "on")
 
     except Exception as e:
         log_device_event(None, f"Error controlling Shelly devices: {e}", "ERROR")
+
+
+def toggle_shelly_device(device, action):
+    """
+    Helper function to toggle a Shelly device ON or OFF.
+    """
+    shelly_service = ShellyService(device.device_id)
+    device_status = shelly_service.get_device_status()
+
+    if "error" in device_status:
+        log_device_event(device, f"Error fetching status: {device_status['error']}", "ERROR")
+        return
+
+    is_running = device_status.get("data", {}).get("device_status", {}).get("switch:0", {}).get("output", False)
+
+    if (action == "off" and is_running) or (action == "on" and not is_running):
+        print(f"Toggling {action.upper()} device {device.device_id} ({device.familiar_name})")
+        request_factory = RequestFactory()
+        request = request_factory.get("/toggle-device-output/", {"device_id": device.device_id, "state": action})
+        response = toggle_device_output(request)
+
+        if isinstance(response, JsonResponse) and response.status_code == 200:
+            log_device_event(device, f"Device turned {action.upper()}", "INFO")
+            time.sleep(2)  # Prevent rapid API calls
+        else:
+            log_device_event(device, f"Failed to turn {action.upper()} device. Response: {response.content}", "ERROR")
+
+    else:
+        log_device_event(device, f"Device is already {action.upper()}. No action needed.", "INFO")
+
+
 
 
 

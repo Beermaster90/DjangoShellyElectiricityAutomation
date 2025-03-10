@@ -1,7 +1,7 @@
 ﻿#    api_key = "a028771e-97fc-4c26-af02-4eaf6f8a7d49"  # Replace with your actual ENTSO-E API key
 from django.http import JsonResponse
 from decimal import Decimal, InvalidOperation
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from .models import ElectricityPrice, ShellyDevice, DeviceLog
 import pandas as pd
 from entsoe import EntsoePandasClient
@@ -91,12 +91,11 @@ def save_prices_for_period(period_start_str, price_points):
 
     # **Only call `set_cheapest_hours()` if new prices were added**
     if new_entries_added:
-        print("New prices inserted. Calling set_cheapest_hours()...")
         log_device_event(None, "New electricity prices fetched. Updating cheapest hours.", "INFO")
         set_cheapest_hours()
-    else:
-        print("No new price data inserted. Skipping cheapest hours update.")
-        log_device_event(None, "No new prices detected. Skipping cheapest hour assignment.", "INFO")
+    # else:
+    #     print("No new price data inserted. Skipping cheapest hours update.")
+    #     log_device_event(None, "No new prices detected. Skipping cheapest hour assignment.", "INFO")
 
 def set_cheapest_hours():
     """Assigns devices to the cheapest hours for the next 24 hours."""
@@ -112,8 +111,7 @@ def set_cheapest_hours():
         print("Found", len(prices), "prices.")
 
         if not prices:
-            print("No electricity prices available. Skipping assignment.")
-            log_device_event(None, "No electricity prices available. Skipping assignment.", "WARN")
+            # log_device_event(None, "No electricity prices available. Skipping assignment.", "WARN")
             return
 
         device_assignments = {entry["id"]: set(entry["assigned_devices"].split(",")) if entry["assigned_devices"] else set() for entry in prices}

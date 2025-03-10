@@ -36,7 +36,7 @@ def about(request):
     """Renders the about page."""
     assert isinstance(request, HttpRequest)
     # Get Logs
-    logs = DeviceLog.objects.order_by("-created_at")[:50]  # Get last 50 logs
+    logs = DeviceLog.objects.order_by("-created_at")[:100]  # Get last 50 logs
     return render(
         request,
         'app/about.html',
