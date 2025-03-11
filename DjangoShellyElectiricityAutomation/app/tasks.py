@@ -105,8 +105,8 @@ def toggle_shelly_device(device, action):
         else:
             log_device_event(device, f"Failed to turn {action.upper()} device. Response: {response.content}", "ERROR")
 
-    else:
-        log_device_event(device, f"Device is already {action.upper()}. No action needed.", "DEBUG")
+    #else:
+        #log_device_event(device, f"Device is already {action.upper()}. No action needed.", "DEBUG")
 
 
 
