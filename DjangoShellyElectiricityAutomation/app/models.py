@@ -1,10 +1,6 @@
-"""
-Definition of models.
-"""
-
 from django.db import models
 from django.contrib.auth.models import User
-from django.utils import timezone
+from app.utils.time_utils import TimeUtils
 
 # Create your models here.
 
@@ -14,17 +10,17 @@ class ShellyDevice(models.Model):
     shelly_api_key = models.CharField(max_length=255)  # API key for the device
     shelly_device_name = models.CharField(max_length=255, blank=True, null=True)  # Device name from the API
 
-    # Automatically store the creation time
+    # Automatically store the creation time in UTC
     created_at = models.DateTimeField(auto_now_add=True)
     
-    # Automatically store the last modification time
+    # Automatically store the last modification time in UTC
     updated_at = models.DateTimeField(auto_now=True)
 
     # Django User and Shelly relationship
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     
     status = models.IntegerField(default=0)
-    last_contact = models.DateTimeField(default=timezone.now)  # Use a callable for the default
+    last_contact = models.DateTimeField(default=TimeUtils.now_utc)  # Ensure UTC storage
 
     # New field for how many hours the device should run daily
     run_hours_per_day = models.IntegerField(
@@ -47,16 +43,14 @@ class ShellyDevice(models.Model):
         return self.familiar_name
 
 class ElectricityPrice(models.Model):
-    start_time = models.DateTimeField(default=timezone.now)
-    end_time = models.DateTimeField(default=timezone.now)
+    id = models.AutoField(primary_key=True)  # Explicit ID field
+    start_time = models.DateTimeField(default=TimeUtils.now_utc)  # Store in UTC
+    end_time = models.DateTimeField(default=TimeUtils.now_utc)  # Store in UTC
     price_kwh = models.DecimalField(max_digits=12, decimal_places=5)
     created_at = models.DateTimeField(auto_now_add=True)
-    assigned_devices = models.TextField(blank=True, null=True)  # New column to store device IDs
-    last_assigned_at = models.DateTimeField(blank=True, null=True)
 
     def __str__(self):
         return f"{self.price_kwh} e/kWh from {self.start_time} to {self.end_time}"
-
 
 class DeviceLog(models.Model):
     STATUS_CHOICES = [
@@ -77,3 +71,12 @@ class DeviceLog(models.Model):
 
     def __str__(self):
         return f"Log for {self.device.familiar_name if self.device else 'System'} - {self.status}"
+
+class DeviceAssignment(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    device = models.ForeignKey(ShellyDevice, on_delete=models.CASCADE)
+    electricity_price = models.ForeignKey(ElectricityPrice, on_delete=models.CASCADE)
+    assigned_at = models.DateTimeField(auto_now_add=True)  # Timestamp of assignment
+
+    def __str__(self):
+        return f"{self.device.familiar_name} assigned at {self.electricity_price.start_time} by {self.user.username}"

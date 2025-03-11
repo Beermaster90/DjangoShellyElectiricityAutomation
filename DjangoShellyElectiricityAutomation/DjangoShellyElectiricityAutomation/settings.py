@@ -102,8 +102,8 @@ AUTH_PASSWORD_VALIDATORS = [
 # Internationalization
 # https://docs.djangoproject.com/en/2.1/topics/i18n/
 LANGUAGE_CODE = 'en-us'
-TIME_ZONE = 'Europe/Helsinki'
-USE_TZ = False  # Set to False if you don't want Django to use timezone-aware datetimes
+TIME_ZONE = "UTC"
+USE_TZ = True  # Set to False if you don't want Django to use timezone-aware datetimes
 USE_I18N = True
 USE_L10N = True
 

@@ -5,16 +5,13 @@ from django.utils.timezone import now
 from django.conf import settings
 from django.test import RequestFactory
 from django.http import JsonResponse
-from app.models import ShellyDevice, ElectricityPrice, DeviceLog  # Include DeviceLog
+from app.models import ShellyDevice, ElectricityPrice, DeviceLog, DeviceAssignment  # Include DeviceLog
 from app.shelly_views import toggle_device_output, fetch_device_status
 from app.services.shelly_service import ShellyService
 from app.price_views import call_fetch_prices,get_cheapest_hours
-
-def log_device_event(device, message, status="INFO"):
-    """
-    Logs events related to a Shelly device or system-wide events.
-    """
-    DeviceLog.objects.create(device=device if device else None, message=message, status=status)
+from .logger import log_device_event
+from app.utils.time_utils import TimeUtils  # Import for UTC handling
+import pytz
 
 
 def fetch_electricity_prices():
@@ -33,18 +30,29 @@ def fetch_electricity_prices():
 def control_shelly_devices():
     """
     Loops through all Shelly devices and toggles them based on pre-assigned cheapest hours.
+    Runs on fixed UTC+2 time.
     """
     try:
-        current_time = datetime.now()  # Local time
-        current_hour = current_time.hour
+        # Get current time in UTC
+        current_time = TimeUtils.now_utc()
 
-        print(f"Checking devices for {current_time} (Hour: {current_hour})")  # Debugging log
+        # Ensure we're fetching prices for the current hour
+        start_of_hour = current_time.replace(minute=0, second=0, microsecond=0)
+        end_of_hour = start_of_hour + timedelta(minutes=59, seconds=59)
 
-        # Fetch ElectricityPrice entries for the current hour
+        print(f"Checking devices for {current_time} (UTC) Querying UTC Hour: {start_of_hour.hour}")
+
+        # Fetch ElectricityPrice entries for the correct hour
         active_prices = ElectricityPrice.objects.filter(
-            start_time__hour=current_hour,
-            start_time__date=current_time.date()
+            start_time__range=(start_of_hour, end_of_hour)
         )
+
+        print(f"Active Prices Found: {len(active_prices)}")
+        for price in active_prices:
+            print(f" - ID: {price.id}, Start Time: {price.start_time} (TZ: {price.start_time.tzinfo})")
+
+        # Convert active_prices to a list of IDs for filtering
+        active_price_ids = list(active_prices.values_list("id", flat=True))
 
         # Fetch all devices
         devices = ShellyDevice.objects.all()
@@ -52,25 +60,20 @@ def control_shelly_devices():
         for device in devices:
             print(f"Processing device: {device.device_id} ({device.familiar_name})")
 
-            assigned = False  # Flag to check if the device is assigned
+            # Check if the device is assigned to any active price using IDs
+            assigned = DeviceAssignment.objects.filter(
+                device=device,
+                electricity_price_id__in=active_price_ids  # Use ID comparison instead of object comparison
+            ).exists()
 
-            # Loop through electricity prices and check if the device is assigned
-            for price_entry in active_prices:
-                if not price_entry.assigned_devices:
-                    continue  # Skip if there are no assigned devices
-
-                assigned_devices = [x.strip() for x in price_entry.assigned_devices.split(",")]  # Convert to list and strip spaces
-
-                if str(device.device_id) in assigned_devices:
-                    assigned = True
-                    break  # No need to check further
+            print(f"Assigned status for device {device.familiar_name}: {assigned}")
 
             if not assigned:
                 print(f"Device {device.familiar_name} is NOT assigned for this hour. Stopping it.")
                 toggle_shelly_device(device, "off")
                 continue  # Skip further checks for this device
 
-            # Device is assigned, check if it is already running
+            # Device is assigned, ensure it is running
             toggle_shelly_device(device, "on")
 
     except Exception as e:
@@ -103,7 +106,7 @@ def toggle_shelly_device(device, action):
             log_device_event(device, f"Failed to turn {action.upper()} device. Response: {response.content}", "ERROR")
 
     else:
-        log_device_event(device, f"Device is already {action.upper()}. No action needed.", "INFO")
+        log_device_event(device, f"Device is already {action.upper()}. No action needed.", "DEBUG")
 
 
 

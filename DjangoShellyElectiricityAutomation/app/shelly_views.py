@@ -2,12 +2,7 @@
 from django.http import JsonResponse
 from .services.shelly_service import ShellyService
 from .models import ShellyDevice, DeviceLog
-
-def log_device_event(device, message, status="INFO"):
-    """
-    Logs events related to a Shelly device in the DeviceLog model.
-    """
-    DeviceLog.objects.create(device=device, message=message, status=status)
+from .logger import log_device_event
 
 def fetch_device_status(request):
     device_id = request.GET.get("device_id")
@@ -47,7 +42,7 @@ def fetch_device_status(request):
                 is_running = "Running" if switch_data.get("output", False) else "Stopped"
 
         # Log device status retrieval
-        log_device_event(device, f"Status fetched: Online={is_online}, Running={is_running}", "INFO")
+        log_device_event(device, f"Status fetched: Online={is_online}, Running={is_running}", "DEBUG")
 
         return JsonResponse({
             "device_id": device_id,

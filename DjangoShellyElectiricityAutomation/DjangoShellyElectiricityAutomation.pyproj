@@ -34,7 +34,9 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="app\apps.py" />
+    <Compile Include="app\device_assignment_manager.py" />
     <Compile Include="app\forms.py" />
+    <Compile Include="app\logger.py" />
     <Compile Include="app\models.py" />
     <Compile Include="app\admin.py">
       <SubType>Code</SubType>
@@ -54,12 +56,14 @@
       <SubType>Code</SubType>
     </Compile>
     <Compile Include="app\tests.py" />
+    <Compile Include="app\utils\time_utils.py" />
     <Compile Include="app\views.py" />
     <Compile Include="app\shelly_views.py">
       <SubType>Code</SubType>
     </Compile>
     <Compile Include="app\__init__.py" />
     <Compile Include="app\migrations\__init__.py" />
+    <Compile Include="datehandler.py" />
     <Compile Include="DjangoShellyElectiricityAutomation\settings.py" />
     <Compile Include="DjangoShellyElectiricityAutomation\urls.py" />
     <Compile Include="DjangoShellyElectiricityAutomation\wsgi.py" />
@@ -69,6 +73,7 @@
   <ItemGroup>
     <Folder Include="app\" />
     <Folder Include="app\migrations\" />
+    <Folder Include="app\utils\" />
     <Folder Include="app\services\" />
     <Folder Include="app\static\" />
     <Folder Include="app\static\app\" />

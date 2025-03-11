@@ -41,7 +41,7 @@
         }
 
         tr.cheapest-hour {
-            background-color: #28a745 !important; /* Green highlight */
+            background-color: #28a745 !important;
             color: white;
         }
 
@@ -66,36 +66,6 @@
         .current-hour {
             background-color: lightblue !important;
         }
-
-        .status-online {
-            color: green;
-            font-weight: bold;
-        }
-
-        .status-offline {
-            color: red;
-            font-weight: bold;
-        }
-
-        .status-running {
-            color: #007bff; /* Blue for running */
-            font-weight: bold;
-        }
-
-        .status-stopped {
-            color: orange;
-            font-weight: bold;
-        }
-
-        .status-error {
-            color: darkred;
-            font-weight: bold;
-        }
-
-        .status-loading {
-            color: gray;
-            font-style: italic;
-        }
     </style>
 
     <!-- Device Selection Dropdown -->
@@ -111,18 +81,6 @@
         {% endfor %}
     </select>
 
-    <!-- Shelly Device Status -->
-    <div class="device-status">
-        <h3>Device Status</h3>
-        <p id="deviceStatus">Fetching status...</p>
-    </div>
-
-
-    <!-- Hidden inputs -->
-    <input type="hidden" id="dayTransferPrice" value="0">
-    <input type="hidden" id="nightTransferPrice" value="0">
-    <input type="hidden" id="cheapestHours" value="">
-    <input type="hidden" id="hoursNeeded" value="0">
     <!-- Transfer Prices Display -->
     <div class="table-container">
         <h2>Device Information</h2>
@@ -136,7 +94,7 @@
         <canvas id="priceChart"></canvas>
     </div>
 
-    <!-- Transfer Prices Display -->
+    <!-- Price Table -->
     <table>
         <thead>
             <tr>
@@ -151,10 +109,10 @@
             <tr class="{% if price.start_time|date:'H' == current_hour %}current-hour{% endif %}"
                 data-assigned="{{ price.assigned_devices }}"
                 data-hour="{{ price.start_time|date:'H' }}">
-                <td>{{ price.start_time|date:"H:i" }}</td>
+                <td class="price-time" data-utc="{{ price.start_time }}">{{ price.start_time }}</td>
                 <td class="price-value" data-price="{{ price.price_kwh }}">{{ price.price_kwh }} c/kWh</td>
-                <td class="total-price">-</td> <!-- Will be updated dynamically -->
-                <td class="assigned">-</td> <!-- Will be updated dynamically -->
+                <td class="total-price">-</td>
+                <td class="assigned">-</td>
             </tr>
             {% empty %}
             <tr>
@@ -164,249 +122,87 @@
         </tbody>
     </table>
 
-
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
     <script>
-        let currentDeviceId = document.getElementById("deviceSelect").value;
-            function updateAssignedColumn() {
-                let selectedDeviceId = document.getElementById("deviceSelect").value;
+        document.addEventListener("DOMContentLoaded", function () {
+            convertTimesToLocal();
+            updateDeviceData();
+            updateTotalPrices();
+        });
 
-            document.querySelectorAll("tbody tr").forEach(row => {
-                let assignedDevices = row.getAttribute("data-assigned") || ""; // Get assigned device IDs
-                let assignedList = assignedDevices.split(",").map(id => id.trim()); // Convert to array
-
-            let isAssigned = assignedList.includes(selectedDeviceId); // Check if selected device is assigned
-            row.querySelector(".assigned").textContent = isAssigned ? "X" : "";
+        function convertTimesToLocal() {
+            document.querySelectorAll(".price-time").forEach(el => {
+                let utcString = el.dataset.utc;
+                let utcDate = new Date(utcString);
+                let localTime = utcDate.toLocaleString([], { hour: '2-digit', minute: '2-digit' });
+                el.innerText = localTime; // Replace UTC string with local time
             });
         }
 
-            document.getElementById("deviceSelect").addEventListener("change", function () {
-                updateAssignedColumn();
+        function updateAssignedColumn() {
+            let selectedDeviceId = document.getElementById("deviceSelect").value;
+            document.querySelectorAll("tbody tr").forEach(row => {
+                let assignedDevices = row.getAttribute("data-assigned") || "";
+                let assignedList = assignedDevices.split(",").map(id => id.trim());
+                let isAssigned = assignedList.includes(selectedDeviceId);
+                row.querySelector(".assigned").textContent = isAssigned ? "X" : "";
+            });
+        }
+
+        function updateTotalPrices() {
+            let dayTransferPrice = parseFloat(document.getElementById("dayPriceText").textContent.replace(",", ".")) || 0;
+            let nightTransferPrice = parseFloat(document.getElementById("nightPriceText").textContent.replace(",", ".")) || 0;
+            let vatMultiplier = 1.255; // 25.5% VAT
+
+            document.querySelectorAll("tbody tr").forEach(row => {
+                let hour = new Date(row.querySelector(".price-time").dataset.utc).getHours();
+                let price = parseFloat(row.querySelector(".price-value").dataset.price.replace(",", "."));
+
+                if (!isNaN(price)) {
+                    let totalPrice = (hour >= 7 && hour < 22) ? (price + dayTransferPrice) : (price + nightTransferPrice);
+
+                    // Apply VAT before rounding
+                    let totalWithVAT = totalPrice * vatMultiplier;
+
+                    // Round UP to 2 decimal places
+                    let roundedTotal = Math.ceil(totalWithVAT * 100) / 100;
+
+                    // Force correct decimal display
+                    row.querySelector(".total-price").textContent = roundedTotal.toFixed(2) + " c/kWh";
+                }
+            });
+        }
+
+
+
+
+        function updateDeviceData() {
+            let deviceSelect = document.getElementById("deviceSelect");
+            let selectedOption = deviceSelect.options[deviceSelect.selectedIndex];
+
+            let selectedDeviceId = selectedOption.value;
+            let dayPrice = parseFloat(selectedOption.getAttribute("data-day-price")) || 0;
+            let nightPrice = parseFloat(selectedOption.getAttribute("data-night-price")) || 0;
+            let cheapestHours = selectedOption.getAttribute("data-cheapest-hours") || "";
+            let hoursNeeded = parseInt(selectedOption.getAttribute("data-hours-needed")) || 0;
+
+            document.getElementById("dayPriceText").innerText = dayPrice.toFixed(2);
+            document.getElementById("nightPriceText").innerText = nightPrice.toFixed(2);
+            document.getElementById("hoursNeededText").innerText = hoursNeeded + " h";
+
+            updateTotalPrices();
+            updateAssignedColumn();
+        }
+
+        document.getElementById("deviceSelect").addEventListener("change", function () {
+            updateDeviceData();
         });
-
-            document.addEventListener("DOMContentLoaded", function () {
-                updateAssignedColumn();  // Initialize on page load
-        });
-
-
-    function updateTotalPrices() {
-    let dayTransferPrice = parseFloat(document.getElementById("dayTransferPrice").value);
-    let nightTransferPrice = parseFloat(document.getElementById("nightTransferPrice").value);
-
-    document.querySelectorAll("tbody tr").forEach(row => {
-    let timeText = row.querySelector("td:nth-child(1)").textContent;
-    let priceText = row.querySelector("td:nth-child(2)").textContent;
-
-    let price = parseFloat(priceText.replace("c/kWh", "").trim());
-    let hour = parseInt(timeText.split(":")[0]); // Extract hour
-
-    if (!isNaN(price)) {
-    let totalPrice = (hour >= 7 && hour < 22) ? (price + dayTransferPrice) : (price + nightTransferPrice);
-    row.querySelector(".total-price").textContent = totalPrice.toFixed(2) + " c/kWh";
-    }
-    });
-    }
-
-    document.addEventListener("DOMContentLoaded", function () {
-    updateDeviceData(); // Ensures the correct prices are selected
-    updateTotalPrices(); // Updates the total prices column
-    });
-
-    document.getElementById("deviceSelect").addEventListener("change", function () {
-    updateTotalPrices(); // Recalculate when a device is selected
-    });
-
-    function fetchDeviceStatus(deviceId) {
-    if (!deviceId) {
-    updateStatus("No device selected.", "status-error");
-    return;
-    }
-
-    console.log("Fetching status for device: ", deviceId); // Debugging log
-
-    fetch(`/shellyapp/fetch-device-status/?device_id=${deviceId}`)
-    .then(response => response.json())
-    .then(data => {
-    console.log("Simplified Device Status:", data); // Debugging log
-
-    if (data.error) {
-    updateStatus("Error fetching status", "status-error");
-    return;
-    }
-
-    let statusText = data.online ? "Online" : "Offline";
-    let statusClass = data.online ? "status-online" : "status-offline";
-
-    if (data.running === "Running") {
-    statusText += " | RUNNING";
-    statusClass = "status-running";
-    } else if (data.running === "Stopped") {
-    statusText += " | STOPPED";
-    statusClass = "status-stopped";
-    }
-
-    updateStatus(statusText, statusClass);
-    })
-    .catch(error => {
-    console.error("Error fetching Shelly device status:", error);
-    updateStatus(`Error: ${error.message}`, "status-error");
-    });
-    }
-
-    function updateStatus(text, className) {
-    let statusElement = document.getElementById("deviceStatus");
-    statusElement.textContent = text;
-    statusElement.className = `status-text ${className}`;
-    }
-
-    let chartInstance = null;
-
-    function updateDeviceData() {
-    let deviceSelect = document.getElementById("deviceSelect");
-    let selectedOption = deviceSelect.options[deviceSelect.selectedIndex];
-
-    let selectedDeviceId = selectedOption.value; // Get the selected device ID
-    let dayPrice = parseFloat(selectedOption.getAttribute("data-day-price")) || 0;
-    let nightPrice = parseFloat(selectedOption.getAttribute("data-night-price")) || 0;
-    let cheapestHours = selectedOption.getAttribute("data-cheapest-hours") || "";
-    let hoursNeeded = parseInt(selectedOption.getAttribute("data-hours-needed")) || 0;
-
-    // **Update hidden inputs**
-    document.getElementById("dayTransferPrice").value = dayPrice;
-    document.getElementById("nightTransferPrice").value = nightPrice;
-    document.getElementById("cheapestHours").value = cheapestHours;
-    document.getElementById("hoursNeeded").value = hoursNeeded;
-
-    // **Update the transfer prices in the UI**
-    document.getElementById("dayPriceText").innerText = dayPrice.toFixed(2) + " c/kWh";
-    document.getElementById("nightPriceText").innerText = nightPrice.toFixed(2) + " c/kWh";
-    document.getElementById("hoursNeededText").innerText = hoursNeeded + " h";
-
-    // console.log("Device Changed:", selectedDeviceId, "Day Price:", dayPrice, "Night Price:", nightPrice); // Debugging
-
-    // **Fetch the device status for the selected device**
-    fetchDeviceStatus(selectedDeviceId);
-
-    // **Update the chart**
-    renderChart();
-    }
-
-    function getChartData() {
-    let labels = [];
-    let totalPrices = [];
-    let cheapestBarHeights = [];
-    let backgroundColors = [];
-
-    let dayTransferPrice = parseFloat(document.getElementById("dayTransferPrice").value);
-    let nightTransferPrice = parseFloat(document.getElementById("nightTransferPrice").value);
-    let cheapestHours = document.getElementById("cheapestHours").value.split(",");
-
-    let maxPrice = 0; // Track the highest price
-
-    document.querySelectorAll("tbody tr").forEach(row => {
-    let timeText = row.querySelector("td:nth-child(1)").textContent;
-    let priceText = row.querySelector("td:nth-child(2)").textContent;
-
-    let price = parseFloat(priceText.replace("c/kWh", "").trim());
-    let hour = timeText.split(":")[0] + ":00"; // Extract HH:00 format
-
-    if (!isNaN(price)) {
-    let totalPrice = (parseInt(hour) >= 7 && parseInt(hour) < 22)
-    ? (price + dayTransferPrice)
-    : (price + nightTransferPrice);
-
-    labels.push(hour);
-    totalPrices.push(totalPrice);
-
-    if (totalPrice > maxPrice) {
-    maxPrice = totalPrice; // Update max price
-    }
-
-    // If it's a cheapest hour, make the bar full height
-    if (cheapestHours.includes(hour.trim())) {
-    cheapestBarHeights.push(maxPrice * 1.2); // Slightly above max for full coverage
-    backgroundColors.push("rgba(40, 167, 69, 0.3)"); // Light green for visibility
-    } else {
-    cheapestBarHeights.push(0); // No bar
-    backgroundColors.push("rgba(0, 0, 0, 0)"); // Transparent
-    }
-    }
-    });
-
-    return { labels, totalPrices, cheapestBarHeights, backgroundColors, maxPrice };
-    }
-
-    function renderChart() {
-    const ctx = document.getElementById('priceChart');
-
-    if (!ctx) {
-    console.warn("Canvas element #priceChart not found!");
-    return;
-    }
-
-    const chartData = getChartData();
-
-    if (!chartData.labels.length) {
-    console.warn("No data for chart!");
-    return;
-    }
-
-    if (chartInstance) {
-    chartInstance.destroy();
-    }
-
-    chartInstance = new Chart(ctx.getContext('2d'), {
-    type: 'bar',
-    data: {
-    labels: chartData.labels,
-    datasets: [
-    {
-    type: 'bar',
-    label: 'Cheapest Hours',
-    data: chartData.cheapestBarHeights, // Set full height
-    backgroundColor: chartData.backgroundColors,
-    borderWidth: 0,
-    barPercentage: 1.0,
-    categoryPercentage: 1.0,
-    },
-    {
-    type: 'line',
-    label: 'Total Electricity Price (c/kWh)',
-    data: chartData.totalPrices,
-    borderColor: '#007bff',
-    backgroundColor: 'rgba(0, 123, 255, 0.2)',
-    fill: false,
-    tension: 0.3,
-    pointRadius: 4,
-    }
-    ]
-    },
-    options: {
-    responsive: true,
-    maintainAspectRatio: false,
-    scales: {
-    x: { title: { display: true, text: 'Time (Hour)' } },
-    y: {
-    title: { display: true, text: 'Price (c/kWh)' },
-    beginAtZero: true,
-    suggestedMax: chartData.maxPrice * 1.3, // Extend for full bar height
-    }
-    }
-    }
-    });
-    }
-
-
-    document.addEventListener("DOMContentLoaded", function () {
-    updateDeviceData();
-    renderChart();
-    fetchDeviceStatus();
-    });
 
     </script>
 
 </div>
+
 {% else %}
 <!-- Show login prompt -->
 <div class="table-container">

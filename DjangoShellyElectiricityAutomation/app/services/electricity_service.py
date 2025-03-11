@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 from django.utils.timezone import make_aware, get_current_timezone
 from ..models import ElectricityPrice
 import xml.etree.ElementTree as ET
+from ..logger import log_device_event
 
 class EntsoDataFetcher:
     def __init__(self, api_key=None):

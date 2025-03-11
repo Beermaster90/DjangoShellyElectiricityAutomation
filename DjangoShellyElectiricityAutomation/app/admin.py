@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import ShellyDevice, ElectricityPrice
+from .models import ShellyDevice, ElectricityPrice, DeviceAssignment
 
 class ShellyDeviceAdmin(admin.ModelAdmin):
     list_display = (
@@ -84,8 +84,28 @@ admin.site.register(ShellyDevice, ShellyDeviceAdmin)
 
 @admin.register(ElectricityPrice)
 class ElectricityPriceAdmin(admin.ModelAdmin):
-    list_display = ('start_time', 'end_time', 'price_kwh', 'created_at', 'assigned_devices','last_assigned_at')  # Columns to display in the admin list
+    list_display = ('start_time', 'end_time', 'price_kwh', 'created_at')  # Columns to display in the admin list
     search_fields = ('start_time', 'end_time')  # Allow searching by these fields
     list_filter = ('start_time', 'end_time')  # Filters for narrowing down records
     ordering = ('-start_time',)  # Order by start time, descending
     readonly_fields = ('created_at',)  # Make created_at field read-only
+
+class DeviceAssignmentAdmin(admin.ModelAdmin):
+    list_display = ('user', 'device', 'electricity_price', 'assigned_at')  # Columns to display in the admin list
+    search_fields = ('user__username', 'device__familiar_name', 'electricity_price__start_time')  # Allow searching by these fields
+    list_filter = ('user', 'device', 'electricity_price__start_time')  # Filters for narrowing down records
+    ordering = ('-assigned_at',)  # Show most recent assignments first
+    readonly_fields = ('assigned_at',)  # Prevent modification of assigned timestamps
+
+    def get_queryset(self, request):
+        """
+        Restrict the queryset so normal users only see their own assignments.
+        Superusers can see all assignments.
+        """
+        qs = super().get_queryset(request)
+        if request.user.is_superuser:
+            return qs  # Superusers see all assignments
+        return qs.filter(user=request.user)  # Normal users only see their own device assignments
+
+# Register the DeviceAssignment model with the custom admin view
+admin.site.register(DeviceAssignment, DeviceAssignmentAdmin)
