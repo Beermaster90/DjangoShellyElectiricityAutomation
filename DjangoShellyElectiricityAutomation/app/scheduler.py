@@ -21,7 +21,7 @@ def start_scheduler():
     # Schedule the fetch electricity prices task (Every hour at HH:00)
     scheduler.add_job(
         fetch_electricity_prices,
-        trigger=CronTrigger(hour="*", minute=0),
+        trigger=CronTrigger(hour="*", minute=59),
         id="fetch_prices",
         max_instances=1,
         replace_existing=True,
@@ -30,7 +30,7 @@ def start_scheduler():
     # Schedule the Shelly device control task (Every 15 minutes)
     scheduler.add_job(
         control_shelly_devices,
-        trigger=CronTrigger(minute="1,16,31,46"),  # Runs at these exact minutes
+        trigger=CronTrigger(minute="0,15,30,45"),  # Runs at these exact minutes
         id="control_shelly",
         max_instances=1,
         replace_existing=True,
