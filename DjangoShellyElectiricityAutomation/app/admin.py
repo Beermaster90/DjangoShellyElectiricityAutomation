@@ -1,5 +1,7 @@
 from django.contrib import admin
+from django.contrib.auth.models import User
 from .models import ShellyDevice, ElectricityPrice, DeviceAssignment
+from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 
 ### SHELLY DEVICE ADMIN ###
 class ShellyDeviceAdmin(admin.ModelAdmin):
@@ -9,7 +11,7 @@ class ShellyDeviceAdmin(admin.ModelAdmin):
         'created_at', 'updated_at', 'user', 'status', 'last_contact'
     )
     search_fields = ('familiar_name',)
-    readonly_fields = ('device_id', 'created_at', 'updated_at', 'user')  # Users cannot change ownership
+    readonly_fields = ('device_id', 'created_at', 'updated_at')  # 'user' is editable for admins
 
     fields = (
         'device_id', 'familiar_name', 'shelly_api_key', 'shelly_device_name', 
@@ -20,8 +22,8 @@ class ShellyDeviceAdmin(admin.ModelAdmin):
     ordering = ['-device_id']
 
     def save_model(self, request, obj, form, change):
-        """ Ensure new devices are owned by the user who creates them. """
-        if not change:
+        """ Ensure new devices are owned by the user who creates them if not set. """
+        if not change and not request.user.is_superuser:
             obj.user = request.user
         super().save_model(request, obj, form, change)
 
@@ -30,10 +32,17 @@ class ShellyDeviceAdmin(admin.ModelAdmin):
         qs = super().get_queryset(request)
         return qs if request.user.is_superuser else qs.filter(user=request.user)
 
-    def get_readonly_fields(self, request, obj=None):
-        """ Allow users to modify all fields **except** ownership-related fields. """
-        readonly = super().get_readonly_fields(request, obj)
-        return readonly if request.user.is_superuser else readonly  # No extra read-only fields needed
+    def formfield_for_foreignkey(self, db_field, request, **kwargs):
+        """
+        Allow admins to select any user in dropdown.
+        Ensure normal users see only themselves.
+        """
+        if db_field.name == "user":
+            if request.user.is_superuser:
+                kwargs["queryset"] = User.objects.all()  # Admins see all users
+            else:
+                kwargs["queryset"] = User.objects.filter(id=request.user.id)  # Users only see themselves
+        return super().formfield_for_foreignkey(db_field, request, **kwargs)
 
 
 admin.site.register(ShellyDevice, ShellyDeviceAdmin)
@@ -73,17 +82,17 @@ class DeviceAssignmentAdmin(admin.ModelAdmin):
 
     def formfield_for_foreignkey(self, db_field, request, **kwargs):
         """
-        Ensure users can only:
-        - Assign devices they own.
-        - Assign themselves (hide other users).
+        Ensure admins can assign devices to any user.
+        Regular users can only assign devices to themselves.
         """
         if db_field.name == "device" and not request.user.is_superuser:
             kwargs["queryset"] = ShellyDevice.objects.filter(user=request.user)
 
-        if db_field.name == "user" and not request.user.is_superuser:
-            kwargs["queryset"] = kwargs["queryset"].filter(username=request.user.username)
-            return None  # Hide the "user" field (set automatically)
-
+        if db_field.name == "user":
+            if request.user.is_superuser:
+                kwargs["queryset"] = User.objects.all()  # Admins see all users
+            else:
+                kwargs["queryset"] = User.objects.filter(id=request.user.id)  # Users only see themselves
         return super().formfield_for_foreignkey(db_field, request, **kwargs)
 
     def save_model(self, request, obj, form, change):
@@ -104,3 +113,4 @@ class DeviceAssignmentAdmin(admin.ModelAdmin):
         return readonly if request.user.is_superuser else readonly + ('user',)
 
 admin.site.register(DeviceAssignment, DeviceAssignmentAdmin)
+

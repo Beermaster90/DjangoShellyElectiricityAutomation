@@ -80,7 +80,10 @@ def get_common_context(request):
     )
 
     # Fetch user's devices
-    devices = ShellyDevice.objects.filter(user=request.user)
+    if request.user.is_superuser:
+        devices = ShellyDevice.objects.all()  # Admins see all devices
+    else:
+        devices = ShellyDevice.objects.filter(user=request.user)  # Users see only their own devices
     selected_device = devices.first()
 
     # Check if a specific device is selected
