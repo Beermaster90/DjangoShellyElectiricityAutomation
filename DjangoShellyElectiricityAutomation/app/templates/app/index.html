@@ -174,9 +174,6 @@
             });
         }
 
-
-
-
         function updateDeviceData() {
             let deviceSelect = document.getElementById("deviceSelect");
             let selectedOption = deviceSelect.options[deviceSelect.selectedIndex];
@@ -198,6 +195,29 @@
         document.getElementById("deviceSelect").addEventListener("change", function () {
             updateDeviceData();
         });
+
+        document.addEventListener("DOMContentLoaded", function () {
+            highlightCurrentHour(); // Call after DOM loads
+        });
+
+        function highlightCurrentHour() {
+            let currentUtcTime = new Date(); // Get current UTC time
+            let currentLocalHour = currentUtcTime.getHours(); // Convert to local hour
+
+            document.querySelectorAll("tbody tr").forEach(row => {
+                let priceTimeElement = row.querySelector(".price-time");
+                if (!priceTimeElement) return;
+
+                let rowUtcTime = new Date(priceTimeElement.dataset.utc);
+                let rowLocalHour = rowUtcTime.getHours(); // Convert row time to local hour
+
+                if (rowLocalHour === currentLocalHour) {
+                    row.classList.add("current-hour"); // Apply the highlight
+                } else {
+                    row.classList.remove("current-hour"); // Remove if not current
+                }
+            });
+        }
 
     </script>
 

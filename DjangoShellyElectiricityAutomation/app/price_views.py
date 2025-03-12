@@ -22,8 +22,15 @@ def call_fetch_prices(request):
     now = TimeUtils.now_utc()
     aligned_now = TimeUtils.to_utc(datetime(now.year, now.month, now.day, now.hour))
 
+    future_cutoff = now + timedelta(hours=12)
+
+    future_prices_exist = ElectricityPrice.objects.filter(start_time__gt=future_cutoff).exists()
+    if future_prices_exist:
+        print(f"Skipping fetch: Prices already exist beyond {future_cutoff}.")
+        return JsonResponse({"message": "Prices already up-to-date."}, status=200)
+
     # Convert to Pandas Timestamp (ensuring UTC consistency)
-    start = pd.Timestamp(aligned_now)  # ✅ Removed unnecessary tz='UTC'
+    start = pd.Timestamp(aligned_now) 
     end = pd.Timestamp(aligned_now + timedelta(days=1))
 
     client = EntsoePandasClient(api_key=api_key)
@@ -36,7 +43,7 @@ def call_fetch_prices(request):
         return JsonResponse({"error": "Price series is empty"}, status=400)
 
     # Get the first timestamp from the price series
-    period_start = TimeUtils.to_utc(price_series.index[0])  # ✅ Directly convert to UTC
+    period_start = TimeUtils.to_utc(price_series.index[0]) 
 
     # Convert `period_start` to string format for database saving
     period_start_str = period_start.strftime("%Y%m%d%H%M")
@@ -96,7 +103,11 @@ def save_prices_for_period(period_start_str, price_points):
     # **Only call `set_cheapest_hours()` if new prices were added**
     if new_entries_added:
         log_device_event(None, "New electricity prices fetched. Updating cheapest hours.", "INFO")
-        set_cheapest_hours()
+        if len(price_points) <= 24:  # Ensure more than 24 price points exist
+            print(f"Skipping cheapest hour assignment: Only {len(price_points)} prices received, expected more than 24.")
+            log_device_event(None, "Incomplete price data received. Skipping cheapest hour assignment.", "WARN")
+        else:
+            set_cheapest_hours()
     # else:
     #     print("No new price data inserted. Skipping cheapest hours update.")
     #     log_device_event(None, "No new prices detected. Skipping cheapest hour assignment.", "INFO")
