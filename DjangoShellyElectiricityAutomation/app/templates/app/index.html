@@ -3,6 +3,7 @@
 {% block content %}
 
 {% if user.is_authenticated %}
+{% if devices %}
 <!-- Show full dashboard when logged in -->
 <div class="table-container">
 
@@ -222,11 +223,15 @@
     </script>
 
 </div>
-
+{% else %}
+<div class="table-container">
+    <h2>You have no devices assigned, please set them from the Control Panel.</h2>
+</div>
+{% endif %}
 {% else %}
 <!-- Show login prompt -->
 <div class="table-container">
-    <h2>Please log in to view electricity prices.</h2>
+    <h2>Please log in to view dashboard.</h2>
     <a href="{% url 'login' %}" class="btn btn-primary">Go to Login</a>
 </div>
 {% endif %}

@@ -1,6 +1,7 @@
 from django.contrib import admin
 from .models import ShellyDevice, ElectricityPrice, DeviceAssignment
 
+### SHELLY DEVICE ADMIN ###
 class ShellyDeviceAdmin(admin.ModelAdmin):
     list_display = (
         'device_id', 'familiar_name', 'shelly_api_key', 'shelly_device_name', 
@@ -8,104 +9,98 @@ class ShellyDeviceAdmin(admin.ModelAdmin):
         'created_at', 'updated_at', 'user', 'status', 'last_contact'
     )
     search_fields = ('familiar_name',)
-    readonly_fields = ('device_id', 'created_at', 'updated_at', 'user')
-    
-    # Fields to display in the form view
+    readonly_fields = ('device_id', 'created_at', 'updated_at', 'user')  # Users cannot change ownership
+
     fields = (
         'device_id', 'familiar_name', 'shelly_api_key', 'shelly_device_name', 
         'run_hours_per_day', 'day_transfer_price', 'night_transfer_price', 
         'created_at', 'updated_at', 'user', 'status', 'last_contact'
     )
 
-    # Order Shelly devices descending by device_id
     ordering = ['-device_id']
 
-    # Override save_model to set the current user as the owner
     def save_model(self, request, obj, form, change):
-        if not change:  # Only set the user when creating a new object
+        """ Ensure new devices are owned by the user who creates them. """
+        if not change:
             obj.user = request.user
         super().save_model(request, obj, form, change)
 
-    # Override the get_queryset method to limit visible devices
-    # Hide fields for everyone except superusers and specific groups
-    def get_fields(self, request, obj=None):
-        fields = super().get_fields(request, obj)
-
-        # Default hidden fields (replace values with asterisk '*')
-        hidden_fields = ['shelly_api_key', 'day_transfer_price', 'night_transfer_price']
-
-        if request.user.is_superuser:
-            return fields  # Superusers see everything
-
-        # If user is part of the 'commoners' group, allow visibility
-        if request.user.groups.filter(name='commoners').exists():
-            return fields  # Commoners see everything
-
-        # Hide specific fields by replacing them with '*' (or omit them altogether)
-        visible_fields = [f if f not in hidden_fields else '*' for f in fields]
-        
-        return visible_fields
-
-    # Filter the queryset to show only the devices the user owns
     def get_queryset(self, request):
+        """ Limit users to only see their own devices. """
         qs = super().get_queryset(request)
+        return qs if request.user.is_superuser else qs.filter(user=request.user)
 
-        if request.user.is_superuser:
-            return qs  # Superusers should see all devices
-
-        # Filter for 'commoners' or other users to show only their devices
-        if request.user.groups.filter(name='commoners').exists():
-            return qs  # Commoners see all devices
-
-        return qs.filter(user=request.user)  # Other users see only their own devices
-
-    # Override save_model to set the current user as the owner when creating a new device
-    def save_model(self, request, obj, form, change):
-        if not change:  # If it's a new object, set the current user as the owner
-            obj.user = request.user
-        super().save_model(request, obj, form, change)
-    
-    # Optionally, hide specific fields from being editable by non-superusers
     def get_readonly_fields(self, request, obj=None):
+        """ Allow users to modify all fields **except** ownership-related fields. """
         readonly = super().get_readonly_fields(request, obj)
-
-        if request.user.is_superuser:
-            return readonly  # Superusers have no additional read-only fields
-
-        if request.user.groups.filter(name='commoners').exists():
-            return readonly  # Commoners can edit all fields
-
-        # Add fields to read-only for other users (if needed)
-        return readonly + ('shelly_api_key', 'day_transfer_price', 'night_transfer_price')
+        return readonly if request.user.is_superuser else readonly  # No extra read-only fields needed
 
 
-# Register the ShellyDevice model with the updated admin class
 admin.site.register(ShellyDevice, ShellyDeviceAdmin)
 
+
+### ELECTRICITY PRICE ADMIN (View Only for Non-Admins) ###
 @admin.register(ElectricityPrice)
 class ElectricityPriceAdmin(admin.ModelAdmin):
-    list_display = ('start_time', 'end_time', 'price_kwh', 'created_at')  # Columns to display in the admin list
-    search_fields = ('start_time', 'end_time')  # Allow searching by these fields
-    list_filter = ('start_time', 'end_time')  # Filters for narrowing down records
-    ordering = ('-start_time',)  # Order by start time, descending
-    readonly_fields = ('created_at',)  # Make created_at field read-only
+    list_display = ('start_time', 'end_time', 'price_kwh', 'created_at')
+    search_fields = ('start_time', 'end_time')
+    list_filter = ('start_time', 'end_time')
+    ordering = ('-start_time',)
+    readonly_fields = ('start_time', 'end_time', 'price_kwh', 'created_at')  # All fields are read-only
 
+    def has_add_permission(self, request):
+        return request.user.is_superuser  # Only admins can add
+
+    def has_change_permission(self, request, obj=None):
+        return request.user.is_superuser  # Only admins can edit
+
+    def has_delete_permission(self, request, obj=None):
+        return request.user.is_superuser  # Only admins can delete
+
+
+### DEVICE ASSIGNMENT ADMIN (Users Can Manage Their Own Assignments) ###
 class DeviceAssignmentAdmin(admin.ModelAdmin):
-    list_display = ('user', 'device', 'electricity_price', 'assigned_at')  # Columns to display in the admin list
-    search_fields = ('user__username', 'device__familiar_name', 'electricity_price__start_time')  # Allow searching by these fields
-    list_filter = ('user', 'device', 'electricity_price__start_time')  # Filters for narrowing down records
-    ordering = ('-assigned_at',)  # Show most recent assignments first
-    readonly_fields = ('assigned_at',)  # Prevent modification of assigned timestamps
+    list_display = ('user', 'device', 'electricity_price', 'assigned_at')
+    search_fields = ('user__username', 'device__familiar_name', 'electricity_price__start_time')
+    list_filter = ('user', 'device', 'electricity_price__start_time')
+    ordering = ('-assigned_at',)
+    readonly_fields = ('assigned_at',)  # Users cannot modify the assignment timestamp
 
     def get_queryset(self, request):
-        """
-        Restrict the queryset so normal users only see their own assignments.
-        Superusers can see all assignments.
-        """
+        """ Limit users to only see their own assignments. """
         qs = super().get_queryset(request)
-        if request.user.is_superuser:
-            return qs  # Superusers see all assignments
-        return qs.filter(user=request.user)  # Normal users only see their own device assignments
+        return qs if request.user.is_superuser else qs.filter(user=request.user)
 
-# Register the DeviceAssignment model with the custom admin view
+    def formfield_for_foreignkey(self, db_field, request, **kwargs):
+        """
+        Ensure users can only:
+        - Assign devices they own.
+        - Assign themselves (hide other users).
+        """
+        if db_field.name == "device" and not request.user.is_superuser:
+            kwargs["queryset"] = ShellyDevice.objects.filter(user=request.user)
+
+        if db_field.name == "user" and not request.user.is_superuser:
+            kwargs["queryset"] = kwargs["queryset"].filter(username=request.user.username)
+            return None  # Hide the "user" field (set automatically)
+
+        return super().formfield_for_foreignkey(db_field, request, **kwargs)
+
+    def save_model(self, request, obj, form, change):
+        """ Ensure non-admin users can only assign devices to themselves. """
+        if not request.user.is_superuser:
+            obj.user = request.user  # Force user field to be request.user
+        super().save_model(request, obj, form, change)
+
+    def has_delete_permission(self, request, obj=None):
+        """ Allow users to delete **only their own** assignments. """
+        if request.user.is_superuser:
+            return True  # Admins can delete everything
+        return obj is None or obj.user == request.user  # Users can delete only their own assignments
+
+    def get_readonly_fields(self, request, obj=None):
+        """ Hide the 'user' field from non-admins (automatically set to request.user). """
+        readonly = super().get_readonly_fields(request, obj)
+        return readonly if request.user.is_superuser else readonly + ('user',)
+
 admin.site.register(DeviceAssignment, DeviceAssignmentAdmin)

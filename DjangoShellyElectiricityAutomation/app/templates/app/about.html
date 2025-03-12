@@ -37,6 +37,15 @@
 
 <h1>Device Logs</h1>
 
+<label for="statusFilter">Filter by Status:</label>
+<select id="statusFilter" onchange="applyFilter()">
+    <option value="">All</option>
+    <option value="DEBUG">Debug</option>
+    <option value="INFO">Info</option>
+    <option value="WARN">Warning</option>
+    <option value="ERROR">Error</option>
+</select>
+
 <table>
     <thead>
         <tr>
@@ -63,7 +72,25 @@
     </tbody>
 </table>
 
+
+
 <script>
+
+    function applyFilter() {
+        let selectedStatus = document.getElementById("statusFilter").value;
+        let newUrl = window.location.pathname + (selectedStatus ? `?status=${selectedStatus}` : '');
+        window.location.href = newUrl;  // Reload page with filter
+    }
+
+    // Keep filter selected after reload
+    document.addEventListener("DOMContentLoaded", function () {
+        let urlParams = new URLSearchParams(window.location.search);
+        let selectedStatus = urlParams.get("status");
+        if (selectedStatus) {
+            document.getElementById("statusFilter").value = selectedStatus;
+        }
+    });
+
     document.addEventListener("DOMContentLoaded", function () {
         document.querySelectorAll(".log-time").forEach(el => {
             let utcString = el.dataset.utc.trim();  // Ensure no extra spaces

@@ -40,35 +40,29 @@ def contact(request):
 def about(request):
     """Renders the about page."""
     assert isinstance(request, HttpRequest)
-    # Get Logs
-    logs = DeviceLog.objects.order_by("-created_at")[:100]  # Get last 50 logs
+    
+    # Base queryset: Admins see all logs, users see only their own devices' logs
+    logs = DeviceLog.objects.all() if request.user.is_superuser else DeviceLog.objects.filter(device__user=request.user)
+    
+    # Apply status filtering (if status filter is set)
+    status_filter = request.GET.get('status', '')
+    if status_filter:
+        logs = logs.filter(status=status_filter)
+
+    # Order by latest first & limit results
+    logs = logs.order_by("-created_at")[:100]  # Slicing happens after filtering
+
     return render(
         request,
         'app/about.html',
         {
-            'title':'Logs',
-            'message':'SHOW ME THE LOGS',
+            'title': 'Logs',
+            'message': 'SHOW ME THE LOGS',
             'year': datetime.now().year,
             "logs": logs,
         }
     )
 
-@csrf_exempt  # Allows POST requests without CSRF token (only use this if necessary)
-def set_timezone(request):
-    """Receives the user's timezone from the frontend and stores it in the session."""
-    if request.method == "POST":
-        try:
-            data = json.loads(request.body)
-            user_timezone = data.get("timezone")
-
-            if user_timezone:
-                request.session["user_timezone"] = user_timezone  # Store in session
-                return JsonResponse({"message": "Timezone updated", "timezone": user_timezone})
-
-        except Exception as e:
-            return JsonResponse({"error": str(e)}, status=400)
-
-    return JsonResponse({"error": "Invalid request"}, status=400)
 
 def get_common_context(request):
     """Fetches shared context data, keeping timestamps in UTC (conversion happens in frontend)."""
