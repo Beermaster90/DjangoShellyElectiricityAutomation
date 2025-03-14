@@ -1,0 +1,15 @@
+version: '3.8'
+
+services:
+  django:
+    build: .
+    container_name: shelly_django
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app
+#     - ./db.sqlite3:/app/db.sqlite3  # Mount SQLite outside container
+    environment:
+      - DEBUG=True
+      - ALLOWED_HOSTS=*
+    restart: unless-stopped

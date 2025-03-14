@@ -121,6 +121,10 @@ def get_common_context(request):
     assignment_manager = DeviceAssignmentManager(request.user)
     devices = assignment_manager.get_device_cheapest_hours(devices)
 
+    #Set current hour
+
+    current_hour = now_utc.strftime("%Y-%m-%d %H:%M")
+
     # Pass UTC current time as ISO format for frontend conversion
     return {
         "prices": prices,  # Prices remain in UTC (JS will convert them)
@@ -129,7 +133,7 @@ def get_common_context(request):
         "day_transfer_price": day_transfer_price,
         "night_transfer_price": night_transfer_price,
         "hours_needed": hours_needed,
-        "current_hour": now_utc.isoformat(),  # Pass UTC time for frontend
+        "current_time": current_hour,  # Example: "2025-03-14 16:00"
         "title": "Landing Page",
         "year": now_utc.year,  # No conversion needed for year
     }

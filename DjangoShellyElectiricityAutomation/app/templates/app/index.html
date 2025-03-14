@@ -107,8 +107,8 @@
             <tr class="{% if price.start_time|date:'H' == current_hour %}current-hour{% endif %}"
                 data-assigned="{{ price.assigned_devices }}"
                 data-hour="{{ price.start_time|date:'H' }}">
-                <td class="price-time" data-utc="{{ price.start_time }}">{{ price.start_time }}</td>
-                <td class="price-value" data-price="{{ price.price_kwh }}">{{ price.price_kwh }} c/kWh</td>
+                <td class="price-time" data-utc="{{ price.start_time }}">{{ price.start_time|date:'d.m - H:i' }}</td>
+                <td class="price-value" data-price="{{ price.price_kwh }}">{{ price.price_kwh|floatformat:2 }} c/kWh</td>
                 <td class="total-price">-</td>
                 <td class="assigned">-</td>
             </tr>
@@ -137,9 +137,15 @@
         function convertTimesToLocal() {
             document.querySelectorAll(".price-time").forEach(el => {
                 let utcString = el.dataset.utc;
-                let utcDate = new Date(utcString);
-                let localTime = utcDate.toLocaleString([], { hour: '2-digit', minute: '2-digit' });
-                el.innerText = localTime; // Replace UTC string with local time
+                let localDate = new Date(utcString);
+
+                // Format as "DD.MM - HH:MM"
+                let formattedTime = ('0' + localDate.getDate()).slice(-2) + "." +
+                    ('0' + (localDate.getMonth() + 1)).slice(-2) + " - " +
+                    ('0' + localDate.getHours()).slice(-2) + ":" +
+                    ('0' + localDate.getMinutes()).slice(-2);
+
+                el.innerText = formattedTime; // Update the displayed time
             });
         }
 
@@ -165,17 +171,17 @@
                 if (!isNaN(price)) {
                     let totalPrice = (hour >= 7 && hour < 22) ? (price + dayTransferPrice) : (price + nightTransferPrice);
 
-                    // Apply VAT before rounding
+                    // Apply VAT calculation
+                    let priceWithVAT = price * vatMultiplier;
                     let totalWithVAT = totalPrice * vatMultiplier;
 
-                    // Round UP to 2 decimal places
-                    let roundedTotal = Math.ceil(totalWithVAT * 100) / 100;
-
-                    // Force correct decimal display
-                    row.querySelector(".total-price").textContent = roundedTotal.toFixed(2) + " c/kWh";
+                    // Round only for display
+                    row.querySelector(".price-value").textContent = priceWithVAT.toFixed(2) + " c/kWh";
+                    row.querySelector(".total-price").textContent = totalWithVAT.toFixed(2) + " c/kWh";
                 }
             });
         }
+
 
         function updateDeviceData() {
             let deviceSelect = document.getElementById("deviceSelect");
@@ -224,23 +230,26 @@
         }
 
         function highlightCurrentHour() {
-            let currentUtcTime = new Date(); // Get current UTC time
-            let currentLocalHour = currentUtcTime.getHours(); // Convert to local hour
+            let currentLocalTime = new Date();
+            let currentLocalDate = currentLocalTime.toLocaleDateString();
+            let currentLocalHour = currentLocalTime.getHours();
 
             document.querySelectorAll("tbody tr").forEach(row => {
                 let priceTimeElement = row.querySelector(".price-time");
                 if (!priceTimeElement) return;
 
-                let rowUtcTime = new Date(priceTimeElement.dataset.utc);
-                let rowLocalHour = rowUtcTime.getHours(); // Convert row time to local hour
+                let rowTime = new Date(priceTimeElement.dataset.utc); // Browser automatically uses local time
+                let rowLocalDate = rowTime.toLocaleDateString();
+                let rowLocalHour = rowTime.getHours();
 
-                if (rowLocalHour === currentLocalHour) {
+                if (rowLocalDate === currentLocalDate && rowLocalHour === currentLocalHour) {
                     row.classList.add("current-hour"); // Apply the highlight
                 } else {
                     row.classList.remove("current-hour"); // Remove if not current
                 }
             });
         }
+
 
     </script>
 
