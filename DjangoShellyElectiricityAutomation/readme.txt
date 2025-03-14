@@ -20,3 +20,19 @@ Verify with docker images that you see your docker image
 
 docker run -d -p 8000:8000 --name shelly_django_container shelly_django
 
+Stop and remove the existing container
+
+docker stop shelly_django_container
+docker rm shelly_django_container
+
+Remove the old image (optional)
+
+docker rmi shelly_django
+
+Load the new image from the tar file
+
+docker load -i shelly_django.tar
+
+Run a new container with the updated image
+
+docker run -d --name shelly_django_container -p 8000:8000 shelly_django
