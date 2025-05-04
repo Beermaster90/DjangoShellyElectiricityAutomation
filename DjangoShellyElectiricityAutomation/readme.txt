@@ -18,7 +18,7 @@ docker save -o shelly_django.tar shelly_django
 docker load -i /home/user/shelly_django.tar
 Verify with docker images that you see your docker image
 
-docker run -d -p 8000:8000 --name shelly_django_container shelly_django
+sudo docker run -d --restart unless-stopped -p 8000:8000 --name shelly_django_container shelly_django
 
 Stop and remove the existing container
 
@@ -35,4 +35,4 @@ docker load -i shelly_django.tar
 
 Run a new container with the updated image
 
-docker run -d --name shelly_django_container -p 8000:8000 shelly_django
+sudo docker run -d --restart unless-stopped -p 8000:8000 --name shelly_django_container shelly_django
