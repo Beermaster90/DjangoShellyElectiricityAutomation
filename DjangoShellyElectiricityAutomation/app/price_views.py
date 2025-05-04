@@ -195,7 +195,7 @@ def get_cheapest_hours(prices, day_transfer_price, night_transfer_price, hours_n
         entry["start_time"] = TimeUtils.to_utc(entry["start_time"])  # Ensure UTC timezone
         hour = entry["start_time"].hour  # Extract the hour
 
-        if 7 <= hour < 22:  # Daytime hours (7:00-22:00)
+        if 7 <= hour <= 22:  # Daytime hours (7:00-22:00)
             entry['total_price'] = entry['price_kwh'] + day_transfer_price
         else:  # Nighttime hours
             entry['total_price'] = entry['price_kwh'] + night_transfer_price
