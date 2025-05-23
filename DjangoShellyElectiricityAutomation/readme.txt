@@ -2,7 +2,7 @@ Docker files are located next to .SLN at Project root.
 DockerFile
 docker-compose.yml
 
-# Build the Docker image
+# Build the Docker image asddas
 docker-compose build
 
 # Start the Django app in Docker
