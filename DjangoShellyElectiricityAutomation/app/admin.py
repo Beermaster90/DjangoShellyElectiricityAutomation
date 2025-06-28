@@ -8,7 +8,7 @@ class ShellyDeviceAdmin(admin.ModelAdmin):
     list_display = (
         'device_id', 'familiar_name', 'shelly_api_key', 'shelly_device_name', 
         'run_hours_per_day', 'day_transfer_price', 'night_transfer_price', 
-        'created_at', 'updated_at', 'user', 'status', 'last_contact'
+        'created_at', 'updated_at', 'user', 'status', 'last_contact', 'relay_channel', 'shelly_server'
     )
     search_fields = ('familiar_name',)
     readonly_fields = ('device_id', 'created_at', 'updated_at')  # 'user' is editable for admins
@@ -16,7 +16,7 @@ class ShellyDeviceAdmin(admin.ModelAdmin):
     fields = (
         'device_id', 'familiar_name', 'shelly_api_key', 'shelly_device_name', 
         'run_hours_per_day', 'day_transfer_price', 'night_transfer_price', 
-        'created_at', 'updated_at', 'user', 'status', 'last_contact'
+        'created_at', 'updated_at', 'user', 'status', 'last_contact', 'relay_channel', 'shelly_server'
     )
 
     ordering = ['-device_id']

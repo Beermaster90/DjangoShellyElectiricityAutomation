@@ -183,7 +183,12 @@
         }
 
 
+        let isFetchingDeviceStatus = false;
+
         function updateDeviceData() {
+            if (isFetchingDeviceStatus) return;
+            isFetchingDeviceStatus = true;
+
             let deviceSelect = document.getElementById("deviceSelect");
             let selectedOption = deviceSelect.options[deviceSelect.selectedIndex];
 
@@ -210,23 +215,21 @@
                         return;
                     }
 
-                    // Update UI with device status
                     document.getElementById("deviceStatus").innerText = data.online ? "Online" : "Offline";
                     document.getElementById("deviceRunning").innerText = data.running;
 
-                    // Change color dynamically based on online status
-                    let statusElement = document.getElementById("deviceStatus");
-                    statusElement.style.color = data.online ? "green" : "red";
-
-                    let runningElement = document.getElementById("deviceRunning");
-                    runningElement.style.color = data.running === "Running" ? "blue" : "black";
+                    // Color styling
+                    document.getElementById("deviceStatus").style.color = data.online ? "green" : "red";
+                    document.getElementById("deviceRunning").style.color = data.running === "Running" ? "blue" : "black";
                 })
                 .catch(error => {
                     console.error("Error fetching device status:", error);
                     document.getElementById("deviceStatus").innerText = "Error";
                     document.getElementById("deviceRunning").innerText = "Unknown";
+                })
+                .finally(() => {
+                    isFetchingDeviceStatus = false; // Allow next call
                 });
-
         }
 
         function highlightCurrentHour() {

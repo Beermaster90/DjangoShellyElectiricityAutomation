@@ -1,20 +1,23 @@
 import requests
 from ..models import ShellyDevice  # Import the ShellyDevice model
+import time
 
 class ShellyService:
     def __init__(self, device_id):
         """Initialize ShellyService with the correct auth_key and device_name based on device_id."""
-        self.base_cloud_url = 'https://shelly-137-eu.shelly.cloud'
-
         # Fetch Shelly device data dynamically
         shelly_device = ShellyDevice.objects.filter(device_id=device_id).first()
         
         if shelly_device:
             self.auth_key = shelly_device.shelly_api_key  #  Fetch API key from DB
             self.device_name = shelly_device.shelly_device_name  #  Fetch device name
+            self.base_cloud_url = shelly_device.shelly_server # Fetch Configured API Server
+            self.relay_channel = shelly_device.relay_channel or 0
         else:
             self.auth_key = None
             self.device_name = "Unknown Device"
+            self.base_cloud_url = "Unknown"
+            self.relay_channel = 0
 
     def get_device_status(self):
         """Fetches the status of a Shelly device using its auth_key and device_name."""
@@ -43,7 +46,7 @@ class ShellyService:
         except requests.RequestException as e:
             return {"error": str(e)}
 
-    def set_device_output(self, state, channel=0):
+    def set_device_output(self, state, channel=None):
 
         """Sets the output state of a Shelly device to 'on' or 'off'."""
         if not self.auth_key:
@@ -60,7 +63,7 @@ class ShellyService:
         }
         data = {
             "turn": state,  # 'on' or 'off'
-            "channel": channel  # Defaults to channel 0 (switch:0)
+            "channel": channel if channel is not None else self.relay_channel  # Use device’s default if not passed
         }
 
         try:

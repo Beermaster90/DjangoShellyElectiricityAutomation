@@ -39,6 +39,17 @@ class ShellyDevice(models.Model):
         help_text="Transfer price during the night (c/kWh)"
     )
 
+    relay_channel = models.IntegerField(
+        default=0,
+        help_text="Default relay channel for the Shelly device (e.g., 0 for switch:0)"
+    )
+
+    shelly_server = models.URLField(
+    max_length=512,
+    default="https://yourapiaddress.shelly.cloud",
+    help_text="Base URL of the Shelly server used for device communication"
+    )
+
     def __str__(self):
         return self.familiar_name
 
