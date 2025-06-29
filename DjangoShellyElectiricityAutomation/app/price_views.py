@@ -11,8 +11,9 @@ from datetime import timedelta
 from .logger import log_device_event
 from .device_assignment_manager import DeviceAssignmentManager  # Import the class
 from app.utils.time_utils import TimeUtils
+import pytz  # pip install pytz
 
-
+LOCAL_TZ = pytz.timezone("Europe/Helsinki")   # change if needed
 
 def call_fetch_prices(request):
     api_key = "a028771e-97fc-4c26-af02-4eaf6f8a7d49"  # Replace with your actual ENTSO-E API key
@@ -101,6 +102,7 @@ def save_prices_for_period(period_start_str, price_points):
             new_entries_added = True  # Mark that we inserted new data
 
     # **Only call `set_cheapest_hours()` if new prices were added**
+
     if new_entries_added:
         log_device_event(None, "New electricity prices fetched. Updating cheapest hours.", "INFO")
         if len(price_points) <= 24:  # Ensure more than 24 price points exist
@@ -179,31 +181,35 @@ def set_cheapest_hours():
         log_device_event(None, f"Error in set_cheapest_hours: {str(e)}", "ERROR")
 
 
-def get_cheapest_hours(prices, day_transfer_price, night_transfer_price, hours_needed):
-    """
-    Determine the cheapest hours to run a device based on its own electricity prices.
+def get_cheapest_hours(
+        prices: list[dict],
+        day_transfer_price: float,
+        night_transfer_price: float,
+        hours_needed: int,
+        local_tz: timezone = LOCAL_TZ,
+):
 
-    :param prices: List of dictionaries with 'start_time' and 'price_kwh'
-    :param day_transfer_price: Additional price during the day (c/kWh)
-    :param night_transfer_price: Additional price during the night (c/kWh)
-    :param hours_needed: Number of hours required to run the device per day
-    :return: List of cheapest time slots (datetime objects)
-    """
+    day_tp   = Decimal(str(day_transfer_price))
+    night_tp = Decimal(str(night_transfer_price))
 
-    # Ensure prices include total price (electricity + transfer cost)
+    enriched: list[tuple[Decimal, datetime]] = []
+
     for entry in prices:
-        entry["start_time"] = TimeUtils.to_utc(entry["start_time"])  # Ensure UTC timezone
-        hour = entry["start_time"].hour  # Extract the hour
+        ts: datetime = entry["start_time"]
 
-        if 7 <= hour <= 22:  # Daytime hours (7:00-22:00)
-            entry['total_price'] = entry['price_kwh'] + day_transfer_price
-        else:  # Nighttime hours
-            entry['total_price'] = entry['price_kwh'] + night_transfer_price
+        # 1️⃣  Make the timestamp timezone-aware *in local time*
+        if ts.tzinfo is None:
+            ts = local_tz.localize(ts)
+        local_ts = ts.astimezone(local_tz)  # guarantees local clock time
 
-    # Sort by total price (ascending order)
-    sorted_prices = sorted(prices, key=lambda x: x['total_price'])
+        # 2️⃣  Day or night in *local* clock
+        transfer = day_tp if 7 <= local_ts.hour < 22 else night_tp
 
-    # Select **exactly** `hours_needed` hours
-    cheapest_slots = [entry['start_time'] for entry in sorted_prices[:hours_needed]]
+        # 3️⃣  Total price using Decimal to avoid rounding surprises
+        total = Decimal(str(entry["price_kwh"])) + transfer
 
-    return cheapest_slots
+        enriched.append((total, ts))        # keep original tz for caller
+
+    # 4️⃣  Pick the N cheapest
+    enriched.sort(key=lambda x: x[0])
+    return [slot for _, slot in enriched[:hours_needed]]
