@@ -36,3 +36,17 @@ docker load -i shelly_django.tar
 Run a new container with the updated image
 
 sudo docker run -d --restart unless-stopped -p 8000:8000 --name shelly_django_container shelly_django
+
+
+
+## Server side instructions
+
+## First time setup create container volume for database so we can save the data if updating container
+docker volume create shelly_django_db
+
+# To update with current database:
+
+sudo docker run -d --name shelly_django_container \
+  -p 35789:8000 \
+  -v shelly_django_db:/app/DjangoShellyElectricityAutomation \
+  shelly_django:latest

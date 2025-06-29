@@ -35,4 +35,6 @@ urllib3
 vine
 wcwidth
 django-apscheduler
+whitenoise
+gunicorn
 

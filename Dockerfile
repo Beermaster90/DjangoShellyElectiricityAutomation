@@ -12,13 +12,15 @@ COPY . /app/
 
 # Install dependencies
 RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r DjangoShellyElectiricityAutomation/requirements.txt
+    pip install --no-cache-dir -r DjangoShellyElectiricityAutomation/requirements.txt && \
+    pip install --no-cache-dir whitenoise gunicorn
 
-# Collect static files (if needed)
+# Collect static files
 RUN python DjangoShellyElectiricityAutomation/manage.py collectstatic --noinput
 
-# Expose port 8000 for Django
+# Expose port 8000
 EXPOSE 8000
 
-# Start the Django server
-CMD ["python", "DjangoShellyElectiricityAutomation/manage.py", "runserver", "0.0.0.0:8000"]
+# Start Django server
+CMD ["gunicorn", "--chdir", "DjangoShellyElectiricityAutomation", "DjangoShellyElectiricityAutomation.wsgi:application", "--bind", "0.0.0.0:8000"]
+#CMD ["python", "DjangoShellyElectiricityAutomation/manage.py", "runserver", "0.0.0.0:8000"]

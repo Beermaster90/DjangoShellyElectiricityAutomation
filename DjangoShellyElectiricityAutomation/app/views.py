@@ -37,6 +37,7 @@ def contact(request):
         }
     )
 
+@login_required
 def about(request):
     """Renders the about page."""
     assert isinstance(request, HttpRequest)
