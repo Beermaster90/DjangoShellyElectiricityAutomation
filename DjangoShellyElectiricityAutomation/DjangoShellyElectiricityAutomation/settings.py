@@ -76,10 +76,15 @@ TEMPLATES = [
 WSGI_APPLICATION = 'DjangoShellyElectiricityAutomation.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/2.1/ref/settings/#databases
+
+def _sqlite_path():
+    # Prefer env var for flexibility; fall back to /data/db.sqlite3
+    return os.environ.get("DJANGO_SQLITE_PATH", "/data/db.sqlite3")
+
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': os.path.join(BASE_DIR, 'db.sqlite3'),
+    "default": {
+        "ENGINE": "django.db.backends.sqlite3",
+        "NAME": _sqlite_path(),   # <-- change from os.path.join(BASE_DIR, 'db.sqlite3')
     }
 }
 
