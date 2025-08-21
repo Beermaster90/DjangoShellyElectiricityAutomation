@@ -3,6 +3,7 @@ from django.http import JsonResponse
 from .services.shelly_service import ShellyService
 from .models import ShellyDevice, DeviceLog
 from .logger import log_device_event
+import time
 
 def fetch_device_status(request):
     device_id = request.GET.get("device_id")
@@ -12,6 +13,7 @@ def fetch_device_status(request):
         return JsonResponse({"error": "Device ID not provided"}, status=400)
 
     try:
+        time.sleep(1.2) # Timeout to make sure api limits wont be hit
         # Initialize Shelly Service
         shelly_service = ShellyService(device_id)
         raw_status = shelly_service.get_device_status()
@@ -63,6 +65,7 @@ def toggle_device_output(request):
     """
     device_id = request.GET.get("device_id")
     state = request.GET.get("state")  # 'on' or 'off'
+    time.sleep(1.2) # Timeout to make sure api limits wont be hit
 
     if not device_id:
         return JsonResponse({"error": "Device ID not provided"}, status=400)

@@ -12,6 +12,7 @@ https://docs.djangoproject.com/en/2.1/ref/settings/
 
 import os
 import posixpath
+from pathlib import Path
 
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -77,14 +78,38 @@ WSGI_APPLICATION = 'DjangoShellyElectiricityAutomation.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/2.1/ref/settings/#databases
 
-def _sqlite_path():
-    # Prefer env var for flexibility; fall back to /data/db.sqlite3
-    return os.environ.get("DJANGO_SQLITE_PATH", "/data/db.sqlite3")
+def _sqlite_path(base_dir: Path) -> str:
+    """
+    Resolve a reliable SQLite path across Linux/Docker and Windows dev.
+
+    Order of precedence:
+      1) DJANGO_SQLITE_PATH env var (expanded; directory auto-created)
+      2) /data/db.sqlite3 if /data exists (container/Linux)
+      3) <BASE_DIR>/db.sqlite3 as a safe local default (Windows/dev)
+    """
+    # 1) Explicit override via env
+    env_val = os.environ.get("DJANGO_SQLITE_PATH")
+    if env_val:
+        p = Path(env_val).expanduser()
+        p.parent.mkdir(parents=True, exist_ok=True)
+        return str(p)
+
+    # 2) Container/Linux convention if the mount point actually exists
+    data_mount = Path("/data")
+    if data_mount.exists():
+        p = data_mount / "db.sqlite3"
+        p.parent.mkdir(parents=True, exist_ok=True)
+        return str(p)
+
+    # 3) Windows/dev fallback next to the project
+    p = Path(base_dir) / "db.sqlite3"
+    p.parent.mkdir(parents=True, exist_ok=True)
+    return str(p)
 
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.sqlite3",
-        "NAME": _sqlite_path(),   # <-- change from os.path.join(BASE_DIR, 'db.sqlite3')
+        "NAME": _sqlite_path(BASE_DIR),
     }
 }
 
