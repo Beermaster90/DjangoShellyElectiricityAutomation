@@ -86,12 +86,14 @@ def toggle_shelly_device(device, action):
     """
     shelly_service = ShellyService(device.device_id)
     device_status = shelly_service.get_device_status()
+    time.sleep(1.2)
 
     if "error" in device_status:
         log_device_event(device, f"Error fetching status: {device_status['error']}", "ERROR")
         return
 
     is_running = device_status.get("data", {}).get("device_status", {}).get("switch:0", {}).get("output", False)
+    time.sleep(1.2)
 
     if (action == "off" and is_running) or (action == "on" and not is_running):
         print(f"Toggling {action.upper()} device {device.device_id} ({device.familiar_name})")
