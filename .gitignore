@@ -22,7 +22,8 @@ media/
 local_settings.py
 
 # VS Code
-.vscode/
+.vscode/settings.json
+.vscode/launch.json
 .history/
 
 # OS
@@ -31,6 +32,7 @@ Thumbs.db
 
 # Virtual environment
 env2/
+env_new/
 env/
 venv/
 
