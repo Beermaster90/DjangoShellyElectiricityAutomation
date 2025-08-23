@@ -7,12 +7,14 @@ from django.urls import path, include  # Import `include` for app URLs
 from django.contrib import admin
 from django.contrib.auth.views import LoginView, LogoutView
 from app import forms, views
+from app.graph_views import graphs
 
 
 urlpatterns = [
     path("", views.index, name="home"),  # Changed from views.home to views.index
     path("contact/", views.contact, name="contact"),
     path("about/", views.about, name="about"),
+    path("graphs/", graphs, name="graphs"),  # Add graphs page
     path(
         "login/",
         LoginView.as_view(

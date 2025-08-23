@@ -1,0 +1,389 @@
+{% extends "app/layout.html" %}
+
+{% block content %}
+
+<div class="jumbotron">
+    <h1>Cost Comparison Graphs</h1>
+    <p class="lead">Compare your actual electricity costs with what fixed pricing would have cost over the past year.</p>
+</div>
+
+<div class="row">
+    <div class="col-md-12">
+        <!-- Input Controls -->
+        <div class="panel panel-primary">
+            <div class="panel-heading">
+                <h3 class="panel-title">Comparison Parameters</h3>
+            </div>
+            <div class="panel-body">
+                <form id="graphForm" class="form-horizontal">
+                    <div class="form-group">
+                        <label for="fixedPrice" class="col-sm-3 control-label">Fixed Price (c/kWh):</label>
+                        <div class="col-sm-3">
+                            <input type="number" 
+                                   class="form-control" 
+                                   id="fixedPrice" 
+                                   name="fixed_price" 
+                                   value="{{ fixed_price }}" 
+                                   step="0.1" 
+                                   min="0" 
+                                   max="50">
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="watts" class="col-sm-3 control-label">Power Consumption (W):</label>
+                        <div class="col-sm-3">
+                            <input type="number" 
+                                   class="form-control" 
+                                   id="watts" 
+                                   name="watts" 
+                                   value="{{ watts }}" 
+                                   min="1" 
+                                   max="10000">
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <div class="col-sm-offset-3 col-sm-6">
+                            <button type="submit" class="btn btn-primary">Update Graph</button>
+                            <span id="loadingIndicator" class="text-muted" style="display: none;">
+                                <i class="glyphicon glyphicon-refresh glyphicon-refresh-animate"></i> Loading...
+                            </span>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Cost Summary -->
+        <div class="panel panel-info" id="summaryPanel">
+            <div class="panel-heading">
+                <h3 class="panel-title">Cost Summary & Savings Analysis</h3>
+            </div>
+            <div class="panel-body">
+                <div class="row">
+                    <div class="col-sm-4">
+                        <div class="text-center">
+                            <h3 class="text-success">Dynamic Pricing</h3>
+                            <h2 id="dynamicTotal" class="text-success">€0.00</h2>
+                            <p><small>Actual electricity prices</small></p>
+                        </div>
+                    </div>
+                    <div class="col-sm-4">
+                        <div class="text-center">
+                            <h3 class="text-info">Fixed Pricing</h3>
+                            <h2 id="fixedTotal" class="text-info">€0.00</h2>
+                            <p><small id="fixedPriceLabel">Fixed rate: 7.0c/kWh</small></p>
+                        </div>
+                    </div>
+                    <div class="col-sm-4">
+                        <div class="text-center">
+                            <h3>Total Savings</h3>
+                            <h2 id="savings" class="text-primary">€0.00</h2>
+                            <p><small id="savingsPercent" class="text-primary">0.0%</small></p>
+                        </div>
+                    </div>
+                </div>
+                <div class="row" style="margin-top: 20px;">
+                    <div class="col-sm-12">
+                        <div class="alert alert-info text-center">
+                            <strong id="savingsMessage">Calculating savings...</strong>
+                        </div>
+                    </div>
+                </div>
+                <div class="row" style="margin-top: 10px;">
+                    <div class="col-sm-12">
+                        <p class="text-muted text-center">
+                            <small id="usageInfo">Based on <span id="usagePeriods">0</span> periods with actual device usage over the available data period.</small>
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Graph Container -->
+        <div class="panel panel-default">
+            <div class="panel-heading">
+                <h3 class="panel-title">Cumulative Cost Comparison Over Time</h3>
+            </div>
+            <div class="panel-body">
+                <canvas id="costChart" width="800" height="400"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<script>
+    let chart = null;
+    let graphData = {{ graph_data|safe }};
+
+    function updateChart(data) {
+        console.log('updateChart called with:', data);
+        
+        const canvas = document.getElementById('costChart');
+        if (!canvas) {
+            console.error('Canvas element not found');
+            return;
+        }
+        
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+            console.error('Could not get canvas context');
+            return;
+        }
+        
+        // Destroy existing chart if it exists
+        if (chart) {
+            chart.destroy();
+        }
+        
+        // Create new chart
+        chart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: data.labels,
+                datasets: [
+                    {
+                        label: 'Dynamic Pricing (€' + data.total_dynamic.toFixed(2) + ' total)',
+                        data: data.dynamic_costs,
+                        borderColor: 'rgb(40, 167, 69)',
+                        backgroundColor: 'rgba(40, 167, 69, 0.1)',
+                        fill: false,
+                        tension: 0.1,
+                        pointBackgroundColor: 'rgb(40, 167, 69)',
+                        pointBorderColor: 'rgb(40, 167, 69)',
+                        pointRadius: 2
+                    },
+                    {
+                        label: 'Fixed Pricing (€' + data.total_fixed.toFixed(2) + ' total) - ' + data.fixed_price + 'c/kWh',
+                        data: data.fixed_costs,
+                        borderColor: 'rgb(23, 162, 184)',
+                        backgroundColor: 'rgba(23, 162, 184, 0.1)',
+                        fill: false,
+                        tension: 0.1,
+                        pointBackgroundColor: 'rgb(23, 162, 184)',
+                        pointBorderColor: 'rgb(23, 162, 184)',
+                        pointRadius: 2
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: {
+                    intersect: false,
+                },
+                plugins: {
+                    legend: {
+                        position: 'top',
+                        labels: {
+                            usePointStyle: true,
+                            padding: 20,
+                            font: {
+                                size: 13
+                            }
+                        }
+                    },
+                    title: {
+                        display: true,
+                        text: 'Cumulative Electricity Costs - Savings: €' + Math.abs(data.savings).toFixed(2) + ' (' + Math.abs(data.savings_percentage).toFixed(1) + '%)',
+                        font: {
+                            size: 16
+                        }
+                    },
+                    tooltip: {
+                        callbacks: {
+                            afterBody: function(context) {
+                                if (context.length > 1) {
+                                    const dynamic = context[0].parsed.y;
+                                    const fixed = context[1].parsed.y;
+                                    const diff = fixed - dynamic;
+                                    return ['', 'Difference at this point: €' + diff.toFixed(2)];
+                                }
+                                return [];
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        display: true,
+                        title: {
+                            display: true,
+                            text: 'Time Period'
+                        },
+                        ticks: {
+                            maxTicksLimit: 20
+                        }
+                    },
+                    y: {
+                        display: true,
+                        title: {
+                            display: true,
+                            text: 'Cumulative Cost (€)'
+                        },
+                        ticks: {
+                            callback: function(value, index, values) {
+                                return '€' + value.toFixed(2);
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    function updateSummary(data) {
+        console.log('updateSummary called with:', data);
+        
+        // Update totals with larger, more prominent display
+        const elements = {
+            dynamicTotal: document.getElementById('dynamicTotal'),
+            fixedTotal: document.getElementById('fixedTotal'),
+            savings: document.getElementById('savings'),
+            savingsPercent: document.getElementById('savingsPercent'),
+            usagePeriods: document.getElementById('usagePeriods'),
+            fixedPriceLabel: document.getElementById('fixedPriceLabel'),
+            savingsMessage: document.getElementById('savingsMessage'),
+            usageInfo: document.getElementById('usageInfo')
+        };
+        
+        // Check for missing elements
+        for (const [name, element] of Object.entries(elements)) {
+            if (!element) {
+                console.error('Element not found:', name);
+                return;
+            }
+        }
+        
+        elements.dynamicTotal.textContent = '€' + data.total_dynamic.toFixed(2);
+        elements.fixedTotal.textContent = '€' + data.total_fixed.toFixed(2);
+        elements.savings.textContent = '€' + Math.abs(data.savings).toFixed(2);
+        elements.savingsPercent.textContent = Math.abs(data.savings_percentage).toFixed(1) + '%';
+        elements.usagePeriods.textContent = data.periods_with_usage;
+        
+        // Update fixed price label
+        elements.fixedPriceLabel.textContent = 'Fixed rate: ' + data.fixed_price + 'c/kWh';
+        
+        // Create detailed savings message
+        let savingsMessage = '';
+        let alertClass = 'alert-info';
+        
+        if (data.savings > 0) {
+            savingsMessage = '💰 You SAVED €' + data.savings.toFixed(2) + ' (' + data.savings_percentage.toFixed(1) + '%) by using dynamic pricing instead of fixed pricing!';
+            alertClass = 'alert-success';
+            elements.savings.className = 'text-success';
+            elements.savingsPercent.className = 'text-success';
+        } else if (data.savings < 0) {
+            const loss = Math.abs(data.savings);
+            savingsMessage = '📉 Fixed pricing would have saved €' + loss.toFixed(2) + ' (' + Math.abs(data.savings_percentage).toFixed(1) + '%) compared to dynamic pricing.';
+            alertClass = 'alert-warning';
+            elements.savings.className = 'text-danger';
+            elements.savingsPercent.className = 'text-danger';
+        } else {
+            savingsMessage = '🤔 Both pricing methods would cost exactly the same.';
+            alertClass = 'alert-info';
+            elements.savings.className = 'text-muted';
+            elements.savingsPercent.className = 'text-muted';
+        }
+        
+        // Update message and alert styling
+        elements.savingsMessage.textContent = savingsMessage;
+        const alertDiv = document.querySelector('.alert');
+        if (alertDiv) {
+            alertDiv.className = 'alert ' + alertClass + ' text-center';
+        }
+        
+        // Update usage info message
+        if (data.is_simulated) {
+            elements.usageInfo.innerHTML = '<small>⚠️ Simulated usage for <strong>' + data.total_periods + '</strong> periods (no actual device assignments found). This shows theoretical costs if your device ran continuously.</small>';
+            elements.usageInfo.className = 'text-warning text-center';
+        } else {
+            elements.usageInfo.innerHTML = '<small>✅ Based on <strong>' + data.periods_with_usage + '</strong> periods with actual device usage out of ' + data.total_periods + ' total periods available.</small>';
+            elements.usageInfo.className = 'text-success text-center';
+        }
+    }
+
+    // Initialize chart on page load
+    document.addEventListener('DOMContentLoaded', function() {
+        console.log('Page loaded, initializing graphs...');
+        console.log('Graph data:', graphData);
+        
+        if (graphData && graphData.labels && graphData.labels.length > 0) {
+            updateChart(graphData);
+            updateSummary(graphData);
+        } else {
+            console.warn('No graph data available or empty data set');
+            // Show a message to the user
+            document.querySelector('#costChart').getContext('2d').font = "16px Arial";
+            document.querySelector('#costChart').getContext('2d').fillText("No data available. Please check if you have electricity price data in the database.", 10, 50);
+        }
+    });
+
+    // Handle form submission
+    document.getElementById('graphForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const formData = new FormData(this);
+        const params = new URLSearchParams(formData);
+        
+        // Show loading indicator
+        document.getElementById('loadingIndicator').style.display = 'inline';
+        
+        // Make AJAX request
+        fetch('/shellyapp/get-graph-data/?' + params.toString())
+            .then(response => {
+                console.log('Response status:', response.status);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                console.log('Received data:', data);
+                if (data.error) {
+                    alert('Error: ' + data.error);
+                } else {
+                    updateChart(data.graph_data);
+                    updateSummary(data.graph_data);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('An error occurred while updating the graph: ' + error.message);
+            })
+            .finally(() => {
+                // Hide loading indicator
+                document.getElementById('loadingIndicator').style.display = 'none';
+            });
+    });
+</script>
+
+<style>
+    .glyphicon-refresh-animate {
+        -animation: spin .7s infinite linear;
+        -webkit-animation: spin2 .7s infinite linear;
+    }
+
+    @-webkit-keyframes spin2 {
+        from { -webkit-transform: rotate(0deg);}
+        to { -webkit-transform: rotate(360deg);}
+    }
+
+    @keyframes spin {
+        from { transform: scale(1) rotate(0deg);}
+        to { transform: scale(1) rotate(360deg);}
+    }
+
+    #costChart {
+        height: 400px !important;
+    }
+</style>
+
+{% endblock %}
