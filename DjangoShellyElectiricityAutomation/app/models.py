@@ -2,6 +2,17 @@ from django.db import models
 from django.contrib.auth.models import User
 from app.utils.time_utils import TimeUtils
 
+class AppSetting(models.Model):
+    key = models.CharField(max_length=128, unique=True)
+    value = models.TextField()
+
+    def __str__(self):
+        return f"{self.key}: {self.value[:16]}..."
+
+    class Meta:
+        verbose_name = "App Setting"
+        verbose_name_plural = "App Settings"
+
 # Create your models here.
 
 class ShellyDevice(models.Model):

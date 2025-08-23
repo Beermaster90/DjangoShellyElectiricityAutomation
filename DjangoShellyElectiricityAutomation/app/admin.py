@@ -1,7 +1,8 @@
 from django.contrib import admin
 from django.contrib.auth.models import User
-from .models import ShellyDevice, ElectricityPrice, DeviceAssignment
+from .models import ShellyDevice, ElectricityPrice, DeviceAssignment, AppSetting
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
+import pytz
 
 ### SHELLY DEVICE ADMIN ###
 class ShellyDeviceAdmin(admin.ModelAdmin):
@@ -69,7 +70,7 @@ class ElectricityPriceAdmin(admin.ModelAdmin):
 
 ### DEVICE ASSIGNMENT ADMIN (Users Can Manage Their Own Assignments) ###
 class DeviceAssignmentAdmin(admin.ModelAdmin):
-    list_display = ('user', 'device', 'electricity_price', 'assigned_at')
+    list_display = ('user', 'device', 'get_start_time_utc', 'get_start_time_local', 'assigned_at')
     search_fields = ('user__username', 'device__familiar_name', 'electricity_price__start_time')
     list_filter = ('user', 'device', 'electricity_price__start_time')
     ordering = ('-assigned_at',)
@@ -112,5 +113,17 @@ class DeviceAssignmentAdmin(admin.ModelAdmin):
         readonly = super().get_readonly_fields(request, obj)
         return readonly if request.user.is_superuser else readonly + ('user',)
 
+    def get_start_time_utc(self, obj):
+        return obj.electricity_price.start_time.strftime('%Y-%m-%d %H:%M')
+    get_start_time_utc.short_description = 'Start Time (UTC)'
+
+    def get_start_time_local(self, obj):
+        local_tz = pytz.timezone('Europe/Helsinki')
+        local_dt = obj.electricity_price.start_time.astimezone(local_tz)
+        return local_dt.strftime('%Y-%m-%d %H:%M')
+    get_start_time_local.short_description = 'Start Time (Local)'
+
 admin.site.register(DeviceAssignment, DeviceAssignmentAdmin)
+
+admin.site.register(AppSetting)
 

@@ -2,7 +2,7 @@
 from django.http import JsonResponse
 from decimal import Decimal, InvalidOperation
 from datetime import datetime, timedelta, timezone
-from .models import ElectricityPrice, ShellyDevice, DeviceLog, DeviceAssignment
+from .models import ElectricityPrice, ShellyDevice, DeviceLog, DeviceAssignment, AppSetting
 import pandas as pd
 from entsoe import EntsoePandasClient
 from django.shortcuts import render
@@ -15,8 +15,17 @@ import pytz  # pip install pytz
 
 LOCAL_TZ = pytz.timezone("Europe/Helsinki")   # change if needed
 
+def get_entsoe_api_key():
+    setting = AppSetting.objects.filter(key="ENTSOE_API_KEY").first()
+    if not setting:
+        # Create with default value if not found
+        setting = AppSetting.objects.create(key="ENTSOE_API_KEY", value="ABC123")
+    return setting.value
+
 def call_fetch_prices(request):
-    api_key = "a028771e-97fc-4c26-af02-4eaf6f8a7d49"  # Replace with your actual ENTSO-E API key
+    api_key = get_entsoe_api_key()
+    if not api_key:
+        return JsonResponse({"error": "ENTSO-E API key not set in admin settings."}, status=400)
     area_code = "10YFI-1--------U"  # Finland, modify as needed
 
     # Get current UTC time and align it to the current hour

@@ -2,7 +2,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 from django_apscheduler.jobstores import DjangoJobStore
 from django.db import connection
-from app.tasks import fetch_electricity_prices,control_shelly_devices
+from app.tasks import DeviceController
 import logging
 
 logger = logging.getLogger(__name__)
@@ -20,7 +20,7 @@ def start_scheduler():
 
     # Schedule the fetch electricity prices task (Every hour at HH:00)
     scheduler.add_job(
-        fetch_electricity_prices,
+        DeviceController.fetch_electricity_prices,
         trigger=CronTrigger(hour="*", minute=0),
         id="fetch_prices",
         max_instances=1,
@@ -29,7 +29,7 @@ def start_scheduler():
 
     # Schedule the Shelly device control task (Every 15 minutes)
     scheduler.add_job(
-        control_shelly_devices,
+        DeviceController.control_shelly_devices,
         trigger=CronTrigger(minute="1,15,30,45"),  # Runs at these exact minutes
         id="control_shelly",
         max_instances=1,

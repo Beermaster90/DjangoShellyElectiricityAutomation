@@ -12,4 +12,5 @@ urlpatterns = [
     path('fetch-device-status/', fetch_device_status, name='fetch_device_status'),  # Specific shelly view
     path('toggle-device-output/', toggle_device_output, name='toggle_device_output'),  # page to toggle shelly device output on / off]
     path('fetch-prices/', call_fetch_prices, name='fetch_prices'),  # fetch electricity prices
+    path('admin-test/', views.admin_test_page, name='admin_test_page'),  # Admin test page
 ]

@@ -37,6 +37,7 @@
     <Compile Include="app\device_assignment_manager.py" />
     <Compile Include="app\forms.py" />
     <Compile Include="app\logger.py" />
+    <Compile Include="app\migrations\0002_entsoe_api_key_default.py" />
     <Compile Include="app\models.py" />
     <Compile Include="app\admin.py">
       <SubType>Code</SubType>
@@ -87,6 +88,7 @@
   </ItemGroup>
   <ItemGroup>
     <Content Include=".gitignore" />
+    <Content Include="app\templates\app\admin_test_page.html" />
     <Content Include="DjangoShellyElectiricityAutomation\__pycache__\settings.cpython-312.pyc" />
     <Content Include="DjangoShellyElectiricityAutomation\__pycache__\urls.cpython-312.pyc" />
     <Content Include="DjangoShellyElectiricityAutomation\__pycache__\wsgi.cpython-312.pyc" />

@@ -10,7 +10,7 @@ from app import forms, views
 
 
 urlpatterns = [
-    path('', views.home, name='home'),
+    path('', views.index, name='home'),  # Changed from views.home to views.index
     path('contact/', views.contact, name='contact'),
     path('about/', views.about, name='about'),
     path('login/',
@@ -27,6 +27,6 @@ urlpatterns = [
          name='login'),
     path('logout/', LogoutView.as_view(next_page='/'), name='logout'),
     path('admin/', admin.site.urls),
-
     path('shellyapp/', include('app.urls')),  # Add this line to include app-specific URLs
+    path('admin-test/', views.admin_test_page, name='admin_test_page'),
 ]

@@ -3,267 +3,258 @@
 {% block content %}
 
 {% if user.is_authenticated %}
-{% if devices %}
-<!-- Show full dashboard when logged in -->
-<div class="table-container">
-
-    <style>
-        /* General styling */
-        body {
-            font-family: Arial, sans-serif;
-            background-color: #f8f9fa;
-        }
-
-        .table-container {
-            max-width: 900px;
-            margin: 20px auto;
-            background: white;
-            padding: 15px;
-            border-radius: 8px;
-            box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.1);
-        }
-
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-bottom: 20px;
-        }
-
-        th, td {
-            padding: 12px 15px;
-            border: 1px solid #ddd;
-            text-align: center;
-        }
-
-        th {
-            background-color: #007bff;
-            color: white;
-            font-weight: bold;
-        }
-
-        tr.cheapest-hour {
-            background-color: #28a745 !important;
-            color: white;
-        }
-
-        h1 {
-            text-align: center;
-            margin-bottom: 20px;
-            color: #333;
-        }
-
-        .chart-container {
-            width: 100%;
-            max-width: 900px;
-            height: 400px;
-            margin: 0 auto;
-        }
-
-        canvas {
-            max-width: 100%;
-            height: 400px !important;
-        }
-
-        .current-hour {
-            background-color: lightblue !important;
-        }
-    </style>
-
-    <!-- Device Selection Dropdown -->
-    <select id="deviceSelect" onchange="updateDeviceData()">
-        {% for device in devices %}
-        <option value="{{ device.device_id }}"
-                data-day-price="{{ device.day_transfer_price }}"
-                data-night-price="{{ device.night_transfer_price }}"
-                data-hours-needed="{{ device.run_hours_per_day }}"
-                data-cheapest-hours="{{ device.cheapest_hours|join:',' }}">
-            {{ device.familiar_name }}
-        </option>
-        {% endfor %}
-    </select>
-
-    <!-- Transfer Prices Display -->
+    {% if devices %}
     <div class="table-container">
-        <h2>Device Information</h2>
-        <p><strong>Day Transfer Price:</strong> <span id="dayPriceText">-</span> c/kWh (07:00 - 21:59)</p>
-        <p><strong>Night Transfer Price:</strong> <span id="nightPriceText">-</span> c/kWh (22:00 - 06:59)</p>
-        <p><strong>Defined Hours to Run:</strong> <span id="hoursNeededText">-</span></p>
-        <p><strong>Device Status:</strong> <span id="deviceStatus">-</span></p>
-        <p><strong>Device Running:</strong> <span id="deviceRunning">-</span></p>
-    </div>
 
-    <!-- Price Table -->
-    <table>
-        <thead>
-            <tr>
-                <th>Start Time (Local)</th>
-                <th>Price (c/kWh)</th>
-                <th>Total Price (c/kWh)</th>
-                <th>Assigned</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for price in prices %}
-            <tr class="{% if price.start_time|date:'H' == current_hour %}current-hour{% endif %}"
-                data-assigned="{{ price.assigned_devices }}"
-                data-hour="{{ price.start_time|date:'H' }}">
-                <td class="price-time" data-utc="{{ price.start_time }}">{{ price.start_time|date:'d.m - H:i' }}</td>
-                <td class="price-value" data-price="{{ price.price_kwh }}">{{ price.price_kwh|floatformat:2 }} c/kWh</td>
-                <td class="total-price">-</td>
-                <td class="assigned">-</td>
-            </tr>
-            {% empty %}
-            <tr>
-                <td colspan="4">No prices available.</td>
-            </tr>
+        <style>
+            /* General styling */
+            body {
+                font-family: Arial, sans-serif;
+                background-color: #f8f9fa;
+            }
+
+            .table-container {
+                max-width: 900px;
+                margin: 20px auto;
+                background: white;
+                padding: 15px;
+                border-radius: 8px;
+                box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.1);
+            }
+
+            table {
+                width: 100%;
+                border-collapse: collapse;
+                margin-bottom: 20px;
+            }
+
+            th, td {
+                padding: 12px 15px;
+                border: 1px solid #ddd;
+                text-align: center;
+            }
+
+            th {
+                background-color: #007bff;
+                color: white;
+                font-weight: bold;
+            }
+
+            tr.cheapest-hour {
+                background-color: #28a745 !important;
+                color: white;
+            }
+
+            h1 {
+                text-align: center;
+                margin-bottom: 20px;
+                color: #333;
+            }
+
+            .chart-container {
+                width: 100%;
+                max-width: 900px;
+                height: 400px;
+                margin: 0 auto;
+            }
+
+            canvas {
+                max-width: 100%;
+                height: 400px !important;
+            }
+
+            .current-hour {
+                background-color: lightblue !important;
+            }
+        </style>
+
+        <!-- Device Selection Dropdown -->
+        <select id="deviceSelect" onchange="updateDeviceData()">
+            {% for device in devices %}
+            <option value="{{ device.device_id }}"
+                    data-day-price="{{ device.day_transfer_price }}"
+                    data-night-price="{{ device.night_transfer_price }}"
+                    data-hours-needed="{{ device.run_hours_per_day }}"
+                    data-cheapest-hours="{{ device.cheapest_hours|join:',' }}">
+                {{ device.familiar_name }}
+            </option>
             {% endfor %}
-        </tbody>
-    </table>
+        </select>
 
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+        <!-- Transfer Prices Display -->
+        <div class="table-container">
+            <h2>Device Information</h2>
+            <p><strong>Day Transfer Price:</strong> <span id="dayPriceText">-</span> c/kWh (07:00 - 21:59)</p>
+            <p><strong>Night Transfer Price:</strong> <span id="nightPriceText">-</span> c/kWh (22:00 - 06:59)</p>
+            <p><strong>Defined Hours to Run:</strong> <span id="hoursNeededText">-</span></p>
+            <p><strong>Device Status:</strong> <span id="deviceStatus">-</span></p>
+            <p><strong>Device Running:</strong> <span id="deviceRunning">-</span></p>
+        </div>
 
-    <script>
-        document.addEventListener("DOMContentLoaded", function () {
-            convertTimesToLocal();
-            updateDeviceData();
-            updateTotalPrices();
-            highlightCurrentHour(); // Call after DOM loads
-        });
+        <!-- Price Table -->
+        <table>
+            <thead>
+                <tr>
+                    <th>Start Time (Local)</th>
+                    <th>Price (c/kWh)</th>
+                    <th>Total Price (c/kWh)</th>
+                    <th>Assigned</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for price in prices %}
+                <tr class="{% if price.start_time|date:'H' == current_hour %}current-hour{% endif %}"
+                    data-assigned="{{ price.assigned_devices }}"
+                    data-hour="{{ price.start_time|date:'H' }}">
+                    <td class="price-time" data-utc="{{ price.start_time }}">{{ price.start_time|date:'d.m - H:i' }}</td>
+                    <td class="price-value" data-price="{{ price.price_kwh }}">{{ price.price_kwh|floatformat:2 }} c/kWh</td>
+                    <td class="total-price">-</td>
+                    <td class="assigned">-</td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="4">No prices available.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
 
-        document.getElementById("deviceSelect").addEventListener("change", function () {
-            updateDeviceData();
-        });
+        <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-        function convertTimesToLocal() {
-            document.querySelectorAll(".price-time").forEach(el => {
-                let utcString = el.dataset.utc;
-                let localDate = new Date(utcString);
-
-                // Format as "DD.MM - HH:MM"
-                let formattedTime = ('0' + localDate.getDate()).slice(-2) + "." +
-                    ('0' + (localDate.getMonth() + 1)).slice(-2) + " - " +
-                    ('0' + localDate.getHours()).slice(-2) + ":" +
-                    ('0' + localDate.getMinutes()).slice(-2);
-
-                el.innerText = formattedTime; // Update the displayed time
+        <script>
+            document.addEventListener("DOMContentLoaded", function () {
+                convertTimesToLocal();
+                updateDeviceData();
+                updateTotalPrices();
+                highlightCurrentHour(); // Call after DOM loads
             });
-        }
 
-        function updateAssignedColumn() {
-            let selectedDeviceId = document.getElementById("deviceSelect").value;
-            document.querySelectorAll("tbody tr").forEach(row => {
-                let assignedDevices = row.getAttribute("data-assigned") || "";
-                let assignedList = assignedDevices.split(",").map(id => id.trim());
-                let isAssigned = assignedList.includes(selectedDeviceId);
-                row.querySelector(".assigned").textContent = isAssigned ? "X" : "";
+            document.getElementById("deviceSelect").addEventListener("change", function () {
+                updateDeviceData();
             });
-        }
 
-        function updateTotalPrices() {
-            let dayTransferPrice = parseFloat(document.getElementById("dayPriceText").textContent.replace(",", ".")) || 0;
-            let nightTransferPrice = parseFloat(document.getElementById("nightPriceText").textContent.replace(",", ".")) || 0;
-            let vatMultiplier = 1.255; // 25.5% VAT
+            function convertTimesToLocal() {
+                document.querySelectorAll(".price-time").forEach(el => {
+                    let utcString = el.dataset.utc;
+                    let localDate = new Date(utcString);
 
-            document.querySelectorAll("tbody tr").forEach(row => {
-                let hour = new Date(row.querySelector(".price-time").dataset.utc).getHours();
-                let price = parseFloat(row.querySelector(".price-value").dataset.price.replace(",", "."));
+                    // Format as "DD.MM - HH:MM"
+                    let formattedTime = ('0' + localDate.getDate()).slice(-2) + "." +
+                        ('0' + (localDate.getMonth() + 1)).slice(-2) + " - " +
+                        ('0' + localDate.getHours()).slice(-2) + ":" +
+                        ('0' + localDate.getMinutes()).slice(-2);
 
-                if (!isNaN(price)) {
-                    let totalPrice = (hour >= 7 && hour < 22) ? (price + dayTransferPrice) : (price + nightTransferPrice);
-
-                    // Apply VAT calculation
-                    let priceWithVAT = price * vatMultiplier;
-                    let totalWithVAT = totalPrice * vatMultiplier;
-
-                    // Round only for display
-                    row.querySelector(".price-value").textContent = priceWithVAT.toFixed(2) + " c/kWh";
-                    row.querySelector(".total-price").textContent = totalWithVAT.toFixed(2) + " c/kWh";
-                }
-            });
-        }
-
-
-        let isFetchingDeviceStatus = false;
-
-        function updateDeviceData() {
-            if (isFetchingDeviceStatus) return;
-            isFetchingDeviceStatus = true;
-
-            let deviceSelect = document.getElementById("deviceSelect");
-            let selectedOption = deviceSelect.options[deviceSelect.selectedIndex];
-
-            let selectedDeviceId = selectedOption.value;
-            let dayPrice = parseFloat(selectedOption.getAttribute("data-day-price")) || 0;
-            let nightPrice = parseFloat(selectedOption.getAttribute("data-night-price")) || 0;
-            let cheapestHours = selectedOption.getAttribute("data-cheapest-hours") || "";
-            let hoursNeeded = parseInt(selectedOption.getAttribute("data-hours-needed")) || 0;
-
-            document.getElementById("dayPriceText").innerText = dayPrice.toFixed(2);
-            document.getElementById("nightPriceText").innerText = nightPrice.toFixed(2);
-            document.getElementById("hoursNeededText").innerText = hoursNeeded + " h";
-
-            updateTotalPrices();
-            updateAssignedColumn();
-
-            // Fetch device status and update UI
-            fetch(`/shellyapp/fetch-device-status/?device_id=${selectedDeviceId}`)
-                .then(response => response.json())
-                .then(data => {
-                    if (data.error) {
-                        document.getElementById("deviceStatus").innerText = "Error";
-                        document.getElementById("deviceRunning").innerText = data.error;
-                        return;
-                    }
-
-                    document.getElementById("deviceStatus").innerText = data.online ? "Online" : "Offline";
-                    document.getElementById("deviceRunning").innerText = data.running;
-
-                    // Color styling
-                    document.getElementById("deviceStatus").style.color = data.online ? "green" : "red";
-                    document.getElementById("deviceRunning").style.color = data.running === "Running" ? "blue" : "black";
-                })
-                .catch(error => {
-                    console.error("Error fetching device status:", error);
-                    document.getElementById("deviceStatus").innerText = "Error";
-                    document.getElementById("deviceRunning").innerText = "Unknown";
-                })
-                .finally(() => {
-                    isFetchingDeviceStatus = false; // Allow next call
+                    el.innerText = formattedTime; // Update the displayed time
                 });
-        }
+            }
 
-        function highlightCurrentHour() {
-            let currentLocalTime = new Date();
-            let currentLocalDate = currentLocalTime.toLocaleDateString();
-            let currentLocalHour = currentLocalTime.getHours();
+            function updateAssignedColumn() {
+                let selectedDeviceId = document.getElementById("deviceSelect").value;
+                document.querySelectorAll("tbody tr").forEach(row => {
+                    let assignedDevices = row.getAttribute("data-assigned") || "";
+                    let assignedList = assignedDevices.split(",").map(id => id.trim());
+                    let isAssigned = assignedList.includes(selectedDeviceId);
+                    row.querySelector(".assigned").textContent = isAssigned ? "X" : "";
+                });
+            }
 
-            document.querySelectorAll("tbody tr").forEach(row => {
-                let priceTimeElement = row.querySelector(".price-time");
-                if (!priceTimeElement) return;
+            function updateTotalPrices() {
+                let dayTransferPrice = parseFloat(document.getElementById("dayPriceText").textContent.replace(",", ".")) || 0;
+                let nightTransferPrice = parseFloat(document.getElementById("nightPriceText").textContent.replace(",", ".")) || 0;
+                let vatMultiplier = 1.255; // 25.5% VAT
 
-                let rowTime = new Date(priceTimeElement.dataset.utc); // Browser automatically uses local time
-                let rowLocalDate = rowTime.toLocaleDateString();
-                let rowLocalHour = rowTime.getHours();
+                document.querySelectorAll("tbody tr").forEach(row => {
+                    let hour = new Date(row.querySelector(".price-time").dataset.utc).getHours();
+                    let price = parseFloat(row.querySelector(".price-value").dataset.price.replace(",", "."));
 
-                if (rowLocalDate === currentLocalDate && rowLocalHour === currentLocalHour) {
-                    row.classList.add("current-hour"); // Apply the highlight
-                } else {
-                    row.classList.remove("current-hour"); // Remove if not current
-                }
-            });
-        }
+                    if (!isNaN(price)) {
+                        let totalPrice = (hour >= 7 && hour < 22) ? (price + dayTransferPrice) : (price + nightTransferPrice);
+
+                        // Apply VAT calculation
+                        let priceWithVAT = price * vatMultiplier;
+                        let totalWithVAT = totalPrice * vatMultiplier;
+
+                        // Round only for display
+                        row.querySelector(".price-value").textContent = priceWithVAT.toFixed(2) + " c/kWh";
+                        row.querySelector(".total-price").textContent = totalWithVAT.toFixed(2) + " c/kWh";
+                    }
+                });
+            }
 
 
-    </script>
+            let isFetchingDeviceStatus = false;
 
-</div>
-{% else %}
-    <div class="table-container">
-        <h2>You have no devices assigned, please set them from the Control Panel.</h2>
+            function updateDeviceData() {
+                if (isFetchingDeviceStatus) return;
+                isFetchingDeviceStatus = true;
+
+                let deviceSelect = document.getElementById("deviceSelect");
+                let selectedOption = deviceSelect.options[deviceSelect.selectedIndex];
+
+                let selectedDeviceId = selectedOption.value;
+                let dayPrice = parseFloat(selectedOption.getAttribute("data-day-price")) || 0;
+                let nightPrice = parseFloat(selectedOption.getAttribute("data-night-price")) || 0;
+                let cheapestHours = selectedOption.getAttribute("data-cheapest-hours") || "";
+                let hoursNeeded = parseInt(selectedOption.getAttribute("data-hours-needed")) || 0;
+
+                document.getElementById("dayPriceText").innerText = dayPrice.toFixed(2);
+                document.getElementById("nightPriceText").innerText = nightPrice.toFixed(2);
+                document.getElementById("hoursNeededText").innerText = hoursNeeded + " h";
+
+                updateTotalPrices();
+                updateAssignedColumn();
+
+                // Fetch device status and update UI
+                fetch(`/shellyapp/fetch-device-status/?device_id=${selectedDeviceId}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.error) {
+                            document.getElementById("deviceStatus").innerText = "Error";
+                            document.getElementById("deviceRunning").innerText = data.error;
+                            return;
+                        }
+
+                        document.getElementById("deviceStatus").innerText = data.online ? "Online" : "Offline";
+                        document.getElementById("deviceRunning").innerText = data.running;
+
+                        // Color styling
+                        document.getElementById("deviceStatus").style.color = data.online ? "green" : "red";
+                        document.getElementById("deviceRunning").style.color = data.running === "running" ? "green" : "red";
+                    })
+                    .catch(error => {
+                        document.getElementById("deviceStatus").innerText = "Error";
+                        document.getElementById("deviceRunning").innerText = error.message;
+                    })
+                    .finally(() => {
+                        isFetchingDeviceStatus = false;
+                    });
+            }
+
+            function highlightCurrentHour() {
+                let currentHour = new Date().getHours();
+                document.querySelectorAll("tbody tr").forEach(row => {
+                    let hour = parseInt(row.getAttribute("data-hour"));
+                    if (hour === currentHour) {
+                        row.classList.add("current-hour");
+                    } else {
+                        row.classList.remove("current-hour");
+                    }
+                });
+            }
+
+            // Reapply highlight on interval
+            setInterval(highlightCurrentHour, 60000); // Check every minute
+
+            // Chart.js code can remain as is
+
+        </script>
     </div>
-{% endif %}
+    {% else %}
+        <div class="table-container">
+            <h2>You have no devices assigned, please set them from the Control Panel.</h2>
+        </div>
+    {% endif %}
 {% else %}
-<!-- Show login prompt -->
 <div class="table-container">
     <h2>Please log in to view dashboard.</h2>
     <a href="{% url 'login' %}" class="btn btn-primary">Go to Login</a>
