@@ -24,7 +24,7 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SECRET_KEY = "cfd44444-40cc-42db-bd8d-027ea6901544"
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = False
+DEBUG = True
 
 ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", "*").split(",")
 
@@ -54,7 +54,7 @@ MIDDLEWARE = [
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 
-ROOT_URLCONF = "DjangoShellyElectiricityAutomation.urls"
+ROOT_URLCONF = "project.urls"
 
 # Template configuration
 # https://docs.djangoproject.com/en/2.1/topics/templates/
@@ -74,7 +74,7 @@ TEMPLATES = [
     },
 ]
 
-WSGI_APPLICATION = "DjangoShellyElectiricityAutomation.wsgi.application"
+WSGI_APPLICATION = "project.wsgi.application"
 # Database
 # https://docs.djangoproject.com/en/2.1/ref/settings/#databases
 
@@ -145,6 +145,7 @@ USE_L10N = True
 STATIC_URL = "/static/"
 STATIC_ROOT = os.path.join(BASE_DIR, "staticfiles")
 
-STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
+# Use regular static files storage for development
+# STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"

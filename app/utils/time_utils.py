@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, UTC
 import pytz
 from django.utils.timezone import get_current_timezone
 from django.conf import settings
@@ -12,7 +12,7 @@ class TimeUtils:
     @staticmethod
     def now_utc():
         """Returns the current time in UTC."""
-        return datetime.utcnow().replace(tzinfo=TimeUtils.UTC)
+        return datetime.now(UTC).replace(tzinfo=TimeUtils.UTC)
 
     @staticmethod
     def to_utc(dt):

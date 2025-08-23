@@ -1,5 +1,6 @@
 import requests
-from ..models import ShellyDevice  # Import the ShellyDevice model
+from ..models import ShellyDevice, AppSetting  # Import the ShellyDevice model and AppSetting
+from ..utils.security_utils import SecurityUtils
 import time
 
 class ShellyService:
@@ -44,11 +45,28 @@ class ShellyService:
             status_data["shelly_device_name"] = self.device_name
             return status_data
         except requests.RequestException as e:
-            return {"error": str(e)}
+            # Sanitize error message to hide sensitive information
+            safe_error = SecurityUtils.get_safe_error_message(e, "Shelly API request failed")
+            return {"error": safe_error}
 
     def set_device_output(self, state, channel=None):
 
         """Sets the output state of a Shelly device to 'on' or 'off'."""
+        
+        # Check if REST debugging is enabled (blocks all REST calls when value is "1")
+        try:
+            debug_setting = AppSetting.objects.filter(key="SHELLY_STOP_REST_DEBUG").first()
+            if debug_setting and debug_setting.value == "1":
+                return {
+                    "status": "blocked", 
+                    "message": f"REST call blocked by SHELLY_STOP_REST_DEBUG setting. Would have turned device {state}.",
+                    "device_name": self.device_name,
+                    "requested_state": state
+                }
+        except Exception as e:
+            # If there's an issue checking the setting, log it but don't block the call
+            print(f"Warning: Could not check SHELLY_STOP_REST_DEBUG setting: {e}")
+        
         if not self.auth_key:
             return {"error": "Auth key is required for cloud requests."}
         if not self.device_name:
@@ -63,7 +81,7 @@ class ShellyService:
         }
         data = {
             "turn": state,  # 'on' or 'off'
-            "channel": channel if channel is not None else self.relay_channel  # Use device’s default if not passed
+            "channel": channel if channel is not None else self.relay_channel  # Use device's default if not passed
         }
 
         try:
@@ -71,4 +89,6 @@ class ShellyService:
             response.raise_for_status()
             return response.json()  # Parse JSON response
         except requests.RequestException as e:
-            return {"error": str(e)}
+            # Sanitize error message to hide sensitive information
+            safe_error = SecurityUtils.get_safe_error_message(e, "Shelly device control failed")
+            return {"error": safe_error}

@@ -11,6 +11,7 @@ from datetime import timedelta
 from .logger import log_device_event
 from .device_assignment_manager import DeviceAssignmentManager  # Import the class
 from app.utils.time_utils import TimeUtils
+from app.utils.security_utils import SecurityUtils
 import pytz  # pip install pytz
 
 LOCAL_TZ = pytz.timezone("Europe/Helsinki")   # change if needed
@@ -45,8 +46,14 @@ def call_fetch_prices(request):
 
     client = EntsoePandasClient(api_key=api_key)
 
-    # Query day‑ahead prices (returns a Pandas Series with a datetime index)
-    price_series = client.query_day_ahead_prices(country_code=area_code, start=start, end=end)
+    try:
+        # Query day‑ahead prices (returns a Pandas Series with a datetime index)
+        price_series = client.query_day_ahead_prices(country_code=area_code, start=start, end=end)
+    except Exception as e:
+        # Sanitize error to hide API key and other sensitive information
+        safe_error = SecurityUtils.get_safe_error_message(e, "ENTSOE price fetch failed")
+        log_device_event(None, safe_error, "ERROR")
+        return JsonResponse({"error": "Failed to fetch electricity prices from ENTSOE"}, status=500)
 
     # **Ensure price_series is not empty before proceeding**
     if price_series.empty:
@@ -186,8 +193,10 @@ def set_cheapest_hours():
         log_device_event(None, f"Assignments successfully updated at {current_time}", "INFO")
 
     except Exception as e:
-        print("Error in set_cheapest_hours:", e)
-        log_device_event(None, f"Error in set_cheapest_hours: {str(e)}", "ERROR")
+        # Sanitize error message to hide sensitive information
+        safe_error = SecurityUtils.get_safe_error_message(e, "Error in set_cheapest_hours")
+        print("Error in set_cheapest_hours:", safe_error)
+        log_device_event(None, safe_error, "ERROR")
 
 
 def get_cheapest_hours(

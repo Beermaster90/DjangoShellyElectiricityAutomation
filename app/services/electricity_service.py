@@ -6,6 +6,7 @@ from django.utils.timezone import make_aware, get_current_timezone
 from ..models import ElectricityPrice
 import xml.etree.ElementTree as ET
 from ..logger import log_device_event
+from ..utils.security_utils import SecurityUtils
 
 class EntsoDataFetcher:
     def __init__(self, api_key=None):
@@ -28,7 +29,9 @@ class EntsoDataFetcher:
             response.raise_for_status()
             return self.parse_prices(response.content)
         except requests.RequestException as e:
-            return {"error": str(e)}
+            # Sanitize error message to hide API tokens
+            safe_error = SecurityUtils.get_safe_error_message(e, "ENTSOE API request failed")
+            return {"error": safe_error}
 
     def parse_prices(self, xml_data):
         """Parses the XML response from ENTSO-E to extract prices."""

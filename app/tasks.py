@@ -68,7 +68,16 @@ class DeviceController:
             request = request_factory.get("/toggle-device-output/", {"device_id": device.device_id, "state": action})
             response = toggle_device_output(request)
             if isinstance(response, JsonResponse) and response.status_code == 200:
-                log_device_event(device, f"Device turned {action.upper()}", "INFO")
+                # Check if the response was blocked by debug setting
+                try:
+                    response_data = response.json() if hasattr(response, 'json') else {}
+                except:
+                    response_data = {}
+                    
+                if response_data.get("status") == "blocked":
+                    log_device_event(device, f"Device toggle BLOCKED by SHELLY_STOP_REST_DEBUG: {response_data.get('message', 'No message')}", "INFO")
+                else:
+                    log_device_event(device, f"Device turned {action.upper()}", "INFO")
                 time.sleep(2)
             else:
                 log_device_event(device, f"Failed to turn {action.upper()} device. Response: {response.content}", "ERROR")

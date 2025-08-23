@@ -87,6 +87,16 @@ def toggle_device_output(request):
             "device_name": device_name,
             "error": result["error"]
         }, status=500)
+    
+    # Handle blocked requests (debug mode)
+    if result.get("status") == "blocked":
+        return JsonResponse({
+            "device_id": device_id,
+            "device_name": device_name,
+            "state": state,
+            "status": "blocked",
+            "message": result["message"]
+        })
 
     return JsonResponse({
         "device_id": device_id,
