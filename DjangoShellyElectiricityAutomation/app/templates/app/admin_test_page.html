@@ -15,28 +15,6 @@
         {% endfor %}
     </select>
     <button type="submit" name="action" value="get_status">Get Status</button>
-    <br><br>
-    <label for="time_format">Show assigned hours in:</label>
-    <select name="time_format" id="time_format">
-        <option value="utc">UTC</option>
-        <option value="local">Local (Europe/Helsinki)</option>
-    </select>
-</form>
-<hr>
-<h3>Assign Device to Price/Hour</h3>
-<form method="post">
-    {% csrf_token %}
-    <select name="assign_device_id">
-        {% for device in devices %}
-            <option value="{{ device.device_id }}">{{ device.familiar_name }}</option>
-        {% endfor %}
-    </select>
-    <select name="assign_price_id">
-        {% for price in prices %}
-            <option value="{{ price.id }}">{{ price.start_time|date:'Y-m-d H:i' }}</option>
-        {% endfor %}
-    </select>
-    <button type="submit" name="action" value="assign_device">Assign Device</button>
 </form>
 <hr>
 <h3>Assign Cheapest Hours to Device (Override 24h check)</h3>
