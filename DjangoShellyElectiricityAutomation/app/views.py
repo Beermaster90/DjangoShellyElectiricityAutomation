@@ -167,7 +167,11 @@ def admin_test_page(request: HttpRequest):
             device = devices.filter(device_id=cheapest_device_id).first()
             if device:
                 assignment_manager = DeviceAssignmentManager(device.user)
-                prices_list = list(ElectricityPrice.objects.order_by("start_time").values("start_time", "price_kwh", "id"))
+                # Only consider prices from now forward
+                now_utc = TimeUtils.now_utc()
+                prices_list = list(
+                    ElectricityPrice.objects.filter(start_time__gte=now_utc).order_by("start_time").values("start_time", "price_kwh", "id")
+                )
                 cheapest_hours = get_cheapest_hours(
                     prices_list,
                     device.day_transfer_price,

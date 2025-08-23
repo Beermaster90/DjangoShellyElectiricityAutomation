@@ -70,7 +70,7 @@ class ElectricityPriceAdmin(admin.ModelAdmin):
 
 ### DEVICE ASSIGNMENT ADMIN (Users Can Manage Their Own Assignments) ###
 class DeviceAssignmentAdmin(admin.ModelAdmin):
-    list_display = ('user', 'device', 'get_start_time_utc', 'get_start_time_local', 'assigned_at')
+    list_display = ('user', 'device', 'get_start_time_local', 'get_end_time_local', 'assigned_at')
     search_fields = ('user__username', 'device__familiar_name', 'electricity_price__start_time')
     list_filter = ('user', 'device', 'electricity_price__start_time')
     ordering = ('-assigned_at',)
@@ -85,6 +85,7 @@ class DeviceAssignmentAdmin(admin.ModelAdmin):
         """
         Ensure admins can assign devices to any user.
         Regular users can only assign devices to themselves.
+        Show electricity price dropdown in local (Finnish) time.
         """
         if db_field.name == "device" and not request.user.is_superuser:
             kwargs["queryset"] = ShellyDevice.objects.filter(user=request.user)
@@ -94,7 +95,27 @@ class DeviceAssignmentAdmin(admin.ModelAdmin):
                 kwargs["queryset"] = User.objects.all()  # Admins see all users
             else:
                 kwargs["queryset"] = User.objects.filter(id=request.user.id)  # Users only see themselves
+
+        if db_field.name == "electricity_price":
+            local_tz = pytz.timezone('Europe/Helsinki')
+            queryset = kwargs.get("queryset", ElectricityPrice.objects.all())
+            # Attach a display string for local time, but use .replace(tzinfo=pytz.UTC) if naive
+            for price in queryset:
+                dt = price.start_time
+                if dt.tzinfo is None or dt.tzinfo.utcoffset(dt) is None:
+                    dt = dt.replace(tzinfo=pytz.UTC)
+                local_dt = dt.astimezone(local_tz)
+                price.local_time_display = local_dt.strftime('%Y-%m-%d %H:%M')
+                price.utc_time_display = dt.strftime('%Y-%m-%d %H:%M')
+            kwargs["queryset"] = queryset
+
         return super().formfield_for_foreignkey(db_field, request, **kwargs)
+
+    def label_from_instance(self, obj):
+        # Show both local and UTC time in dropdown
+        if hasattr(obj, 'local_time_display') and hasattr(obj, 'utc_time_display'):
+            return f"{obj.local_time_display} (local) [{obj.utc_time_display} UTC] ({obj.price_kwh} c/kWh)"
+        return super().label_from_instance(obj)
 
     def save_model(self, request, obj, form, change):
         """ Ensure non-admin users can only assign devices to themselves. """
@@ -113,15 +134,17 @@ class DeviceAssignmentAdmin(admin.ModelAdmin):
         readonly = super().get_readonly_fields(request, obj)
         return readonly if request.user.is_superuser else readonly + ('user',)
 
-    def get_start_time_utc(self, obj):
-        return obj.electricity_price.start_time.strftime('%Y-%m-%d %H:%M')
-    get_start_time_utc.short_description = 'Start Time (UTC)'
-
     def get_start_time_local(self, obj):
         local_tz = pytz.timezone('Europe/Helsinki')
         local_dt = obj.electricity_price.start_time.astimezone(local_tz)
         return local_dt.strftime('%Y-%m-%d %H:%M')
     get_start_time_local.short_description = 'Start Time (Local)'
+
+    def get_end_time_local(self, obj):
+        local_tz = pytz.timezone('Europe/Helsinki')
+        local_dt = obj.electricity_price.end_time.astimezone(local_tz)
+        return local_dt.strftime('%Y-%m-%d %H:%M')
+    get_end_time_local.short_description = 'End Time (Local)'
 
 admin.site.register(DeviceAssignment, DeviceAssignmentAdmin)
 

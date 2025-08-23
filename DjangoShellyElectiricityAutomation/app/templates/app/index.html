@@ -126,11 +126,13 @@
                 convertTimesToLocal();
                 updateDeviceData();
                 updateTotalPrices();
-                highlightCurrentHour(); // Call after DOM loads
+                updateAssignedColumn(); // Ensure assigned column updates on page load
+                highlightCurrentHour();
             });
 
             document.getElementById("deviceSelect").addEventListener("change", function () {
                 updateDeviceData();
+                updateAssignedColumn(); // Ensure assigned column updates on device change
             });
 
             function convertTimesToLocal() {
@@ -149,10 +151,11 @@
             }
 
             function updateAssignedColumn() {
-                let selectedDeviceId = document.getElementById("deviceSelect").value;
+                let selectedDeviceId = document.getElementById("deviceSelect").value.trim();
                 document.querySelectorAll("tbody tr").forEach(row => {
                     let assignedDevices = row.getAttribute("data-assigned") || "";
-                    let assignedList = assignedDevices.split(",").map(id => id.trim());
+                    // Ensure all IDs are compared as strings and trimmed
+                    let assignedList = assignedDevices.split(",").map(id => id.trim()).filter(id => id.length > 0);
                     let isAssigned = assignedList.includes(selectedDeviceId);
                     row.querySelector(".assigned").textContent = isAssigned ? "X" : "";
                 });
