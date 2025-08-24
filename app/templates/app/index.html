@@ -66,6 +66,10 @@
             .current-hour {
                 background-color: lightblue !important;
             }
+
+            .price-row:hover {
+                background-color: #f0f8ff !important;
+            }
         </style>
 
         <!-- Device Selection Dropdown -->
@@ -104,9 +108,12 @@
             </thead>
             <tbody>
                 {% for price in prices %}
-                <tr class="{% if price.hour == current_hour %}current-hour{% endif %}"
+                <tr class="{% if price.hour == current_hour %}current-hour{% endif %} price-row"
                     data-assigned="{{ price.assigned_devices }}"
-                    data-hour="{{ price.hour }}">
+                    data-hour="{{ price.hour }}"
+                    data-price-id="{{ price.id }}"
+                    style="cursor: pointer;"
+                    title="Double-click to assign/unassign device for this hour">
                     <td class="price-time" data-utc="{{ price.start_time }}">{{ price.start_time|date:'d.m - H:i' }}</td>
                     <td class="price-value" data-price="{{ price.price_kwh }}">{{ price.price_kwh|floatformat:2 }} c/kWh</td>
                     <td class="total-price">-</td>
@@ -129,6 +136,14 @@
                 updateTotalPrices();
                 updateAssignedColumn(); // Ensure assigned column updates on page load
                 highlightCurrentHour();
+                
+                // Add double-click event handlers to price rows
+                document.querySelectorAll('.price-row').forEach(row => {
+                    row.addEventListener('dblclick', function(e) {
+                        e.preventDefault();
+                        toggleAssignment(this);
+                    });
+                });
             });
 
             document.getElementById("deviceSelect").addEventListener("change", function () {
@@ -248,6 +263,110 @@
 
             // Reapply highlight on interval
             setInterval(highlightCurrentHour, 60000); // Check every minute
+
+            function toggleAssignment(row) {
+                const deviceSelect = document.getElementById("deviceSelect");
+                const selectedDeviceId = deviceSelect.value;
+                const priceId = row.getAttribute('data-price-id');
+                
+                if (!selectedDeviceId || !priceId) {
+                    alert('Please select a device first');
+                    return;
+                }
+
+                // Visual feedback - disable the row temporarily
+                row.style.opacity = '0.6';
+                row.style.pointerEvents = 'none';
+
+                fetch('/shellyapp/toggle-assignment/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        device_id: selectedDeviceId,
+                        price_id: parseInt(priceId)
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        // Update the data-assigned attribute for this row
+                        const selectedDeviceId = document.getElementById("deviceSelect").value.trim();
+                        let assignedDevices = row.getAttribute("data-assigned") || "";
+                        let assignedList = assignedDevices.split(",").map(id => id.trim()).filter(id => id.length > 0);
+                        
+                        if (data.assigned) {
+                            // Add device ID if not already present
+                            if (!assignedList.includes(selectedDeviceId)) {
+                                assignedList.push(selectedDeviceId);
+                            }
+                        } else {
+                            // Remove device ID
+                            assignedList = assignedList.filter(id => id !== selectedDeviceId);
+                        }
+                        
+                        // Update the data attribute
+                        row.setAttribute("data-assigned", assignedList.join(","));
+                        
+                        // Update the assigned column
+                        updateAssignedColumn();
+                        
+                        // Show success message briefly
+                        showNotification(data.message, 'success');
+                    } else {
+                        console.error('Assignment toggle failed:', data.error);
+                        showNotification('Error: ' + data.error, 'error');
+                    }
+                })
+                .catch(error => {
+                    console.error('Network error:', error);
+                    showNotification('Network error occurred', 'error');
+                })
+                .finally(() => {
+                    // Re-enable the row
+                    row.style.opacity = '1';
+                    row.style.pointerEvents = 'auto';
+                });
+            }
+
+            function showNotification(message, type) {
+                // Create notification element
+                const notification = document.createElement('div');
+                notification.style.cssText = `
+                    position: fixed;
+                    top: 80px;
+                    right: 20px;
+                    padding: 12px 24px;
+                    border-radius: 6px;
+                    color: white;
+                    font-weight: bold;
+                    font-size: 14px;
+                    z-index: 9999;
+                    opacity: 0;
+                    transition: opacity 0.3s ease;
+                    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+                    max-width: 350px;
+                    word-wrap: break-word;
+                    ${type === 'success' ? 'background-color: #28a745;' : 'background-color: #dc3545;'}
+                `;
+                notification.textContent = message;
+                
+                document.body.appendChild(notification);
+                
+                // Show notification
+                setTimeout(() => notification.style.opacity = '1', 10);
+                
+                // Hide and remove notification
+                setTimeout(() => {
+                    notification.style.opacity = '0';
+                    setTimeout(() => {
+                        if (notification.parentNode) {
+                            document.body.removeChild(notification);
+                        }
+                    }, 300);
+                }, 3000);
+            }
 
             // Chart.js code can remain as is
 

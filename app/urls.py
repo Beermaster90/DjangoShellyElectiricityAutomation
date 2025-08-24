@@ -25,4 +25,7 @@ urlpatterns = [
     path(
         "admin-test/", views.admin_test_page, name="admin_test_page"
     ),  # Admin test page
+    path(
+        "toggle-assignment/", views.toggle_device_assignment, name="toggle_device_assignment"
+    ),  # AJAX endpoint for toggling device assignments
 ]

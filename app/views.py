@@ -257,3 +257,73 @@ def admin_test_page(request: HttpRequest):
             "assigned_hours": assigned_hours,
         },
     )
+
+
+from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_http_methods
+import json
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def toggle_device_assignment(request):
+    """
+    Toggle device assignment for a specific hour.
+    Assigns the device if not assigned, unassigns if already assigned.
+    """
+    if not request.user.is_authenticated:
+        return JsonResponse({"success": False, "error": "User not authenticated"})
+    
+    try:
+        data = json.loads(request.body)
+        device_id = data.get('device_id')
+        price_id = data.get('price_id')
+        
+        if not device_id or not price_id:
+            return JsonResponse({"success": False, "error": "Missing device_id or price_id"})
+        
+        # Get the device (ensure user owns it)
+        try:
+            device = ShellyDevice.objects.get(device_id=device_id, user=request.user)
+        except ShellyDevice.DoesNotExist:
+            return JsonResponse({"success": False, "error": "Device not found or access denied"})
+        
+        # Get the electricity price
+        try:
+            electricity_price = ElectricityPrice.objects.get(id=price_id)
+        except ElectricityPrice.DoesNotExist:
+            return JsonResponse({"success": False, "error": "Electricity price not found"})
+        
+        # Check if assignment already exists
+        assignment = DeviceAssignment.objects.filter(
+            user=request.user,
+            device=device,
+            electricity_price=electricity_price
+        ).first()
+        
+        if assignment:
+            # Unassign - delete the assignment
+            assignment.delete()
+            action = "unassigned"
+            assigned = False
+        else:
+            # Assign - create new assignment
+            DeviceAssignment.objects.create(
+                user=request.user,
+                device=device,
+                electricity_price=electricity_price
+            )
+            action = "assigned"
+            assigned = True
+        
+        return JsonResponse({
+            "success": True,
+            "action": action,
+            "assigned": assigned,
+            "message": f"Device {device.familiar_name} {action} for {TimeUtils.format_datetime_with_tz(electricity_price.start_time, request.user, '%H:%M')}"
+        })
+        
+    except json.JSONDecodeError:
+        return JsonResponse({"success": False, "error": "Invalid JSON data"})
+    except Exception as e:
+        return JsonResponse({"success": False, "error": str(e)})
