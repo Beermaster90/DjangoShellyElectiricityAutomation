@@ -24,11 +24,14 @@
                 </div>
                 <div class="form-group">
                     <div class="col-md-offset-2 col-md-10">
-                        <div class="form-check">
+                        <div class="form-check" style="margin-bottom: 15px;">
                             {{ form.remember_me }}
-                            <label for="{{ form.remember_me.id_for_label }}" class="form-check-label">
+                            <label for="{{ form.remember_me.id_for_label }}" class="form-check-label" style="margin-left: 5px;">
                                 {{ form.remember_me.label }}
                             </label>
+                            <small class="form-text text-muted" style="display: block; margin-left: 20px; margin-top: 5px;">
+                                Keep me logged in across browser sessions
+                            </small>
                         </div>
                     </div>
                 </div>

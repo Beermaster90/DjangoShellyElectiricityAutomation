@@ -20,5 +20,5 @@ class BootstrapAuthenticationForm(AuthenticationForm):
         required=False,
         initial=True,  # Default to checked
         widget=forms.CheckboxInput(attrs={'class': 'form-check-input'}),
-        label='Remember me'
+        label=_('Remember me for 90 days')
     )

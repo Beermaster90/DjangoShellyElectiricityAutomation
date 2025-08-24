@@ -22,16 +22,20 @@ class CustomLoginView(LoginView):
     template_name = 'app/login.html'
     
     def form_valid(self, form):
-        remember_me = form.cleaned_data.get('remember_me')
+        """Handle form validation and set session expiry based on remember me checkbox"""
+        remember_me = form.cleaned_data.get('remember_me', False)
+        
+        # Call parent form_valid first to log the user in
+        response = super().form_valid(form)
         
         if remember_me:
-            # Set session to last 90 days
-            self.request.session.set_expiry(60 * 60 * 24 * 90)  # 90 days
+            # Set session to last 90 days (90 * 24 * 60 * 60 seconds)
+            self.request.session.set_expiry(60 * 60 * 24 * 90)
         else:
-            # Use default session timeout (browser close)
+            # Session expires when browser closes (set expiry to 0)
             self.request.session.set_expiry(0)
             
-        return super().form_valid(form)
+        return response
 
 
 def get_common_context(request: HttpRequest) -> Dict[str, Any]:
