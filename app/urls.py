@@ -28,4 +28,7 @@ urlpatterns = [
     path(
         "toggle-assignment/", views.toggle_device_assignment, name="toggle_device_assignment"
     ),  # AJAX endpoint for toggling device assignments
+    path(
+        "toggle-device-status/", views.toggle_device_status, name="toggle_device_status"
+    ),  # AJAX endpoint for toggling device automation status
 ]

@@ -27,7 +27,7 @@ urlpatterns = [
         ),
         name="login",
     ),
-    path("logout/", LogoutView.as_view(next_page="/"), name="logout"),
+    path("logout/", LogoutView.as_view(next_page="/login/"), name="logout"),
     path("admin/", admin.site.urls),
     path(
         "shellyapp/", include("app.urls")

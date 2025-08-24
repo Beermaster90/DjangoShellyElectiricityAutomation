@@ -39,7 +39,7 @@ class ShellyDevice(models.Model):
     # Django User and Shelly relationship
     user = models.ForeignKey(User, on_delete=models.CASCADE)
 
-    status = models.IntegerField(default=0)
+    status = models.IntegerField(default=1)  # 1 = automation enabled, 0 = automation disabled
     last_contact = models.DateTimeField(default=TimeUtils.now_utc)  # Ensure UTC storage
 
     # New field for how many hours the device should run daily

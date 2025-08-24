@@ -288,6 +288,10 @@ def toggle_device_assignment(request):
         except ShellyDevice.DoesNotExist:
             return JsonResponse({"success": False, "error": "Device not found or access denied"})
         
+        # Check if device automation is enabled
+        if device.status != 1:
+            return JsonResponse({"success": False, "error": "Device automation is disabled. Enable it first to manage assignments."})
+        
         # Get the electricity price
         try:
             electricity_price = ElectricityPrice.objects.get(id=price_id)
@@ -321,6 +325,48 @@ def toggle_device_assignment(request):
             "action": action,
             "assigned": assigned,
             "message": f"Device {device.familiar_name} {action} for {TimeUtils.format_datetime_with_tz(electricity_price.start_time, request.user, '%H:%M')}"
+        })
+        
+    except json.JSONDecodeError:
+        return JsonResponse({"success": False, "error": "Invalid JSON data"})
+    except Exception as e:
+        return JsonResponse({"success": False, "error": str(e)})
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def toggle_device_status(request):
+    """
+    Toggle device automation status (enabled/disabled).
+    When disabled, the device will not respond to any automation features.
+    """
+    if not request.user.is_authenticated:
+        return JsonResponse({"success": False, "error": "User not authenticated"})
+    
+    try:
+        data = json.loads(request.body)
+        device_id = data.get('device_id')
+        enabled = data.get('enabled', False)
+        
+        if not device_id:
+            return JsonResponse({"success": False, "error": "Missing device_id"})
+        
+        # Get the device (ensure user owns it)
+        try:
+            device = ShellyDevice.objects.get(device_id=device_id, user=request.user)
+        except ShellyDevice.DoesNotExist:
+            return JsonResponse({"success": False, "error": "Device not found or access denied"})
+        
+        # Update device status (1 = enabled, 0 = disabled)
+        device.status = 1 if enabled else 0
+        device.save()
+        
+        action = "enabled" if enabled else "disabled"
+        
+        return JsonResponse({
+            "success": True,
+            "enabled": enabled,
+            "message": f"Device {device.familiar_name} automation {action}"
         })
         
     except json.JSONDecodeError:

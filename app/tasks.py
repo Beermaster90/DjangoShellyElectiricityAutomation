@@ -44,7 +44,13 @@ class DeviceController:
                 start_time__range=(start_of_hour, end_of_hour)
             )
             active_price_ids = list(active_prices.values_list("id", flat=True))
-            devices = ShellyDevice.objects.all()
+            # Only process devices with automation enabled (status = 1)
+            devices = ShellyDevice.objects.filter(status=1)
+            
+            if not devices.exists():
+                log_device_event(None, "No devices with automation enabled found", "INFO")
+                return
+            
             for device in devices:
                 assigned = DeviceAssignment.objects.filter(
                     device=device, electricity_price_id__in=active_price_ids

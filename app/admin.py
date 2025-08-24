@@ -25,11 +25,18 @@ class ShellyDeviceAdmin(admin.ModelAdmin):
         "created_at",
         "updated_at",
         "user",
-        "status",
+        "get_automation_status",
         "last_contact",
         "relay_channel",
         "shelly_server",
     )
+    
+    def get_automation_status(self, obj):
+        """Display automation status in a user-friendly way."""
+        return "Enabled" if obj.status == 1 else "Disabled"
+    get_automation_status.short_description = "Automation Status"
+    get_automation_status.admin_order_field = "status"
+    
     search_fields = ("familiar_name",)
     readonly_fields = (
         "device_id",
