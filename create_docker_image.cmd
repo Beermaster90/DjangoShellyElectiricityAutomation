@@ -6,7 +6,7 @@ docker build --no-cache -t %IMAGE% .
 if errorlevel 1 goto :fail
 
 echo Verifying settings path inside the image...
-docker run --rm %IMAGE% sh -c "grep -q '/data/db.sqlite3' /app/DjangoShellyElectiricityAutomation/DjangoShellyElectiricityAutomation/settings.py"
+docker run --rm %IMAGE% sh -c "grep -q '/data/db.sqlite3' /app/project/settings.py"
 if errorlevel 1 (
   echo ERROR: Image does not contain /data/db.sqlite3 in settings.py
   goto :fail
