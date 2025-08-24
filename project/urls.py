@@ -5,7 +5,7 @@ Definition of urls for DjangoShellyElectiricityAutomation.
 from datetime import datetime
 from django.urls import path, include  # Import `include` for app URLs
 from django.contrib import admin
-from django.contrib.auth.views import LoginView, LogoutView
+from django.contrib.auth.views import LogoutView
 from app import forms, views
 from app.graph_views import graphs
 
@@ -17,13 +17,11 @@ urlpatterns = [
     path("graphs/", graphs, name="graphs"),  # Add graphs page
     path(
         "login/",
-        LoginView.as_view(
-            template_name="app/login.html",
-            authentication_form=forms.BootstrapAuthenticationForm,
+        views.CustomLoginView.as_view(
             extra_context={
                 "title": "Log in",
                 "year": datetime.now().year,
-            },
+            }
         ),
         name="login",
     ),

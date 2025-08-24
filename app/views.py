@@ -2,6 +2,7 @@ from datetime import datetime, timedelta
 from django.shortcuts import render
 from django.http import HttpRequest, JsonResponse
 from django.contrib.auth.decorators import login_required
+from django.contrib.auth.views import LoginView
 from django.utils import timezone
 from .models import ElectricityPrice, ShellyDevice, DeviceLog, DeviceAssignment
 from .price_views import get_cheapest_hours
@@ -10,8 +11,27 @@ from app.utils.time_utils import TimeUtils
 from typing import Dict, Any
 from django.contrib.admin.views.decorators import staff_member_required
 from django.urls import reverse
+from app.forms import BootstrapAuthenticationForm
 import json
 import pytz
+
+
+class CustomLoginView(LoginView):
+    """Custom login view that handles 'remember me' functionality"""
+    form_class = BootstrapAuthenticationForm
+    template_name = 'app/login.html'
+    
+    def form_valid(self, form):
+        remember_me = form.cleaned_data.get('remember_me')
+        
+        if remember_me:
+            # Set session to last 90 days
+            self.request.session.set_expiry(60 * 60 * 24 * 90)  # 90 days
+        else:
+            # Use default session timeout (browser close)
+            self.request.session.set_expiry(0)
+            
+        return super().form_valid(form)
 
 
 def get_common_context(request: HttpRequest) -> Dict[str, Any]:

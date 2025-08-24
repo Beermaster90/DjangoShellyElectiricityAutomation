@@ -152,13 +152,17 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # Session Configuration
 # Keep users logged in for extended periods
-SESSION_COOKIE_AGE = 60 * 60 * 24 * 90  # 90 days in seconds
+SESSION_COOKIE_AGE = 60 * 60 * 24 * 90  # 90 days in seconds (default, can be overridden)
 SESSION_SAVE_EVERY_REQUEST = True  # Extend session on every request
-SESSION_EXPIRE_AT_BROWSER_CLOSE = False  # Don't expire when browser closes
+SESSION_EXPIRE_AT_BROWSER_CLOSE = False  # Don't expire when browser closes (can be overridden)
 SESSION_COOKIE_HTTPONLY = True  # Security: prevent JS access to session cookie
 SESSION_COOKIE_SECURE = False  # Set to True in production with HTTPS
 SESSION_COOKIE_SAMESITE = "Lax"  # CSRF protection
 SESSION_ENGINE = "django.contrib.sessions.backends.db"  # Store sessions in database
+
+# Security settings for sessions
+CSRF_COOKIE_SECURE = False  # Set to True in production with HTTPS
+CSRF_COOKIE_HTTPONLY = True  # Prevent JS access to CSRF cookie
 
 # Login/Logout redirect URLs
 LOGIN_URL = "/login/"

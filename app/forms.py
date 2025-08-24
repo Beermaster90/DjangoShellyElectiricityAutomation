@@ -16,3 +16,9 @@ class BootstrapAuthenticationForm(AuthenticationForm):
                                widget=forms.PasswordInput({
                                    'class': 'form-control',
                                    'placeholder':'Password'}))
+    remember_me = forms.BooleanField(
+        required=False,
+        initial=True,  # Default to checked
+        widget=forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+        label='Remember me'
+    )
