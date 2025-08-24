@@ -5,6 +5,7 @@ from .models import ShellyDevice, DeviceLog
 from .logger import log_device_event
 import time
 
+
 def fetch_device_status(request):
     device_id = request.GET.get("device_id")
 
@@ -13,7 +14,7 @@ def fetch_device_status(request):
         return JsonResponse({"error": "Device ID not provided"}, status=400)
 
     try:
-        time.sleep(1.2) # Timeout to make sure api limits wont be hit
+        time.sleep(1.2)  # Timeout to make sure api limits wont be hit
         # Initialize Shelly Service
         shelly_service = ShellyService(device_id)
         raw_status = shelly_service.get_device_status()
@@ -23,14 +24,19 @@ def fetch_device_status(request):
         device_name = device.familiar_name if device else "Unknown Device"
 
         if "error" in raw_status:
-            log_device_event(device, f"Error fetching status: {raw_status['error']}", "ERROR")
-            return JsonResponse({
-                "device_id": device_id,
-                "device_name": device_name,
-                "online": False,
-                "running": "unknown",
-                "error": raw_status["error"]
-            }, status=500)
+            log_device_event(
+                device, f"Error fetching status: {raw_status['error']}", "ERROR"
+            )
+            return JsonResponse(
+                {
+                    "device_id": device_id,
+                    "device_name": device_name,
+                    "online": False,
+                    "running": "unknown",
+                    "error": raw_status["error"],
+                },
+                status=500,
+            )
 
         # Extract the relevant data
         device_data = raw_status.get("data", {})
@@ -41,22 +47,27 @@ def fetch_device_status(request):
             status_data = device_data["device_status"]
             if "switch:0" in status_data:
                 switch_data = status_data["switch:0"]
-                is_running = "Running" if switch_data.get("output", False) else "Stopped"
+                is_running = (
+                    "Running" if switch_data.get("output", False) else "Stopped"
+                )
 
         # Log device status retrieval
-        log_device_event(device, f"Status fetched: Online={is_online}, Running={is_running}", "DEBUG")
+        log_device_event(
+            device, f"Status fetched: Online={is_online}, Running={is_running}", "DEBUG"
+        )
 
-        return JsonResponse({
-            "device_id": device_id,
-            "device_name": device_name,
-            "online": is_online,
-            "running": is_running
-        })
+        return JsonResponse(
+            {
+                "device_id": device_id,
+                "device_name": device_name,
+                "online": is_online,
+                "running": is_running,
+            }
+        )
 
     except Exception as e:
         log_device_event(None, f"Exception in fetch_device_status: {e}", "ERROR")
         return JsonResponse({"error": "Internal Server Error"}, status=500)
-
 
 
 def toggle_device_output(request):
@@ -65,16 +76,16 @@ def toggle_device_output(request):
     """
     device_id = request.GET.get("device_id")
     state = request.GET.get("state")  # 'on' or 'off'
-    time.sleep(1.2) # Timeout to make sure api limits wont be hit
+    time.sleep(1.2)  # Timeout to make sure api limits wont be hit
 
     if not device_id:
         return JsonResponse({"error": "Device ID not provided"}, status=400)
-    if state not in ['on', 'off']:
+    if state not in ["on", "off"]:
         return JsonResponse({"error": "Invalid state. Use 'on' or 'off'."}, status=400)
 
     # Initialize Shelly Service
     shelly_service = ShellyService(device_id)
-    
+
     # Fetch device name from the service
     device_name = shelly_service.device_name
 
@@ -82,25 +93,33 @@ def toggle_device_output(request):
     result = shelly_service.set_device_output(state=state)
 
     if "error" in result:
-        return JsonResponse({
-            "device_id": device_id,
-            "device_name": device_name,
-            "error": result["error"]
-        }, status=500)
-    
+        return JsonResponse(
+            {
+                "device_id": device_id,
+                "device_name": device_name,
+                "error": result["error"],
+            },
+            status=500,
+        )
+
     # Handle blocked requests (debug mode)
     if result.get("status") == "blocked":
-        return JsonResponse({
+        return JsonResponse(
+            {
+                "device_id": device_id,
+                "device_name": device_name,
+                "state": state,
+                "status": "blocked",
+                "message": result["message"],
+            }
+        )
+
+    return JsonResponse(
+        {
             "device_id": device_id,
             "device_name": device_name,
             "state": state,
-            "status": "blocked",
-            "message": result["message"]
-        })
-
-    return JsonResponse({
-        "device_id": device_id,
-        "device_name": device_name,
-        "state": state,
-        "status": "success"
-    }, safe=False)
+            "status": "success",
+        },
+        safe=False,
+    )

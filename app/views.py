@@ -13,9 +13,12 @@ from django.urls import reverse
 import json
 import pytz
 
+
 def get_common_context(request: HttpRequest) -> Dict[str, Any]:
-    """Fetches shared context data, keeping timestamps in UTC (conversion happens in frontend)."""
+    """Fetches shared context data, converting times to user's timezone."""
     now_utc = TimeUtils.now_utc()
+    user_timezone = TimeUtils.get_user_timezone(request.user)
+    now_user_tz = TimeUtils.to_user_timezone(now_utc, request.user)
     start_range = now_utc - timedelta(hours=12)
     end_range = now_utc + timedelta(hours=24)
 
@@ -27,7 +30,9 @@ def get_common_context(request: HttpRequest) -> Dict[str, Any]:
 
     if request.user.is_superuser:
         devices = ShellyDevice.objects.all()
-        assignments = DeviceAssignment.objects.select_related('device', 'electricity_price').all()
+        assignments = DeviceAssignment.objects.select_related(
+            "device", "electricity_price"
+        ).all()
     else:
         devices = ShellyDevice.objects.filter(user=request.user)
         assignments = DeviceAssignment.objects.filter(user=request.user)
@@ -38,7 +43,9 @@ def get_common_context(request: HttpRequest) -> Dict[str, Any]:
         selected_device = devices.filter(device_id=selected_device_id).first()
 
     day_transfer_price = selected_device.day_transfer_price if selected_device else 0
-    night_transfer_price = selected_device.night_transfer_price if selected_device else 0
+    night_transfer_price = (
+        selected_device.night_transfer_price if selected_device else 0
+    )
     hours_needed = selected_device.run_hours_per_day if selected_device else 0
 
     # Build a map of price_id -> list of assigned device_ids
@@ -52,12 +59,19 @@ def get_common_context(request: HttpRequest) -> Dict[str, Any]:
 
     for price in prices:
         price["assigned_devices"] = ",".join(assigned_devices_map.get(price["id"], []))
+        # Convert UTC time to user's timezone for hour comparison
+        price_user_tz = TimeUtils.to_user_timezone(price["start_time"], request.user)
+        price["hour"] = str(price_user_tz.hour)  # Extract user timezone hour
         price["start_time"] = price["start_time"].isoformat()
         price["end_time"] = price["end_time"].isoformat()
 
     assignment_manager = DeviceAssignmentManager(request.user)
     devices = assignment_manager.get_device_cheapest_hours(devices)
-    current_hour = now_utc.strftime("%Y-%m-%d %H:%M")
+    current_hour = str(
+        now_user_tz.hour
+    )  # Use user timezone hour for template comparison
+    current_time = now_utc.strftime("%Y-%m-%d %H:%M")  # Keep full timestamp in UTC
+    user_timezone_name = TimeUtils.get_user_timezone_name(request.user)
 
     return {
         "prices": prices,
@@ -66,46 +80,65 @@ def get_common_context(request: HttpRequest) -> Dict[str, Any]:
         "day_transfer_price": day_transfer_price,
         "night_transfer_price": night_transfer_price,
         "hours_needed": hours_needed,
-        "current_time": current_hour,
+        "current_hour": current_hour,
+        "current_time": current_time,
+        "user_timezone": user_timezone_name,
         "title": "Landing Page",
         "year": now_utc.year,
     }
 
-@login_required(login_url='/login/')
+
+@login_required(login_url="/login/")
 def index(request: HttpRequest):
     """Landing page view."""
     return render(request, "app/index.html", get_common_context(request))
 
+
 @login_required
 def about(request: HttpRequest):
-    """Renders the about page with device logs."""
-    logs = DeviceLog.objects.all() if request.user.is_superuser else DeviceLog.objects.filter(device__user=request.user)
-    status_filter = request.GET.get('status', '')
+    """Renders the about page with device logs in user's timezone."""
+    logs = (
+        DeviceLog.objects.all()
+        if request.user.is_superuser
+        else DeviceLog.objects.filter(device__user=request.user)
+    )
+    status_filter = request.GET.get("status", "")
     if status_filter:
         logs = logs.filter(status=status_filter)
     logs = logs.order_by("-created_at")[:100]
+
+    # Convert log timestamps to user's timezone
+    user_timezone_name = TimeUtils.get_user_timezone_name(request.user)
+    for log in logs:
+        log.created_at_user_tz = TimeUtils.format_datetime_with_tz(
+            log.created_at, request.user
+        )
+
     return render(
         request,
-        'app/about.html',
+        "app/about.html",
         {
-            'title': 'Logs',
-            'message': 'SHOW ME THE LOGS',
-            'year': datetime.now().year,
+            "title": "Logs",
+            "message": "SHOW ME THE LOGS",
+            "year": datetime.now().year,
             "logs": logs,
-        }
+            "user_timezone": user_timezone_name,
+        },
     )
+
 
 def contact(request: HttpRequest):
     """Renders the contact page."""
     return render(
         request,
-        'app/contact.html',
+        "app/contact.html",
         {
-            'title':'Contact',
-            'message':'Your contact page.',
-            'year': datetime.now().year,
-        }
+            "title": "Contact",
+            "message": "Your contact page.",
+            "year": datetime.now().year,
+        },
     )
+
 
 @staff_member_required
 def admin_test_page(request: HttpRequest):
@@ -121,28 +154,37 @@ def admin_test_page(request: HttpRequest):
         device_id = request.POST.get("device_id")
         if action == "fetch_prices":
             from .price_views import call_fetch_prices
+
             response = call_fetch_prices(request)
-            if hasattr(response, 'content'):
-                result = response.content.decode('utf-8')
+            if hasattr(response, "content"):
+                result = response.content.decode("utf-8")
             else:
                 result = str(response)
         elif action == "get_status" and device_id:
             from .shelly_views import fetch_device_status
             from django.test import RequestFactory
+
             rf = RequestFactory()
             fake_request = rf.get("/fake", {"device_id": device_id})
             response = fetch_device_status(fake_request)
-            if hasattr(response, 'content'):
-                result = response.content.decode('utf-8')
+            if hasattr(response, "content"):
+                result = response.content.decode("utf-8")
             else:
                 result = str(response)
             # Show assigned hours for the selected device
             device = devices.filter(device_id=device_id).first()
             if device:
                 assignment_manager = DeviceAssignmentManager(device.user)
-                hours = assignment_manager.get_device_cheapest_hours([device])[0].cheapest_hours
+                hours = assignment_manager.get_device_cheapest_hours([device])[
+                    0
+                ].cheapest_hours
                 if time_format == "local":
-                    assigned_hours = [local_tz.localize(datetime.strptime(h, "%H:%M")).astimezone(local_tz).strftime("%H:%M") for h in hours]
+                    assigned_hours = [
+                        local_tz.localize(datetime.strptime(h, "%H:%M"))
+                        .astimezone(local_tz)
+                        .strftime("%H:%M")
+                        for h in hours
+                    ]
                 else:
                     assigned_hours = hours
         elif action == "assign_device":
@@ -154,7 +196,7 @@ def admin_test_page(request: HttpRequest):
                 assignment, created = DeviceAssignment.objects.get_or_create(
                     user=device.user,  # assign to device owner
                     device=device,
-                    electricity_price=price
+                    electricity_price=price,
                 )
                 if created:
                     result = f"Device {device.familiar_name} assigned to {price.start_time} for user {device.user.username}"
@@ -170,34 +212,48 @@ def admin_test_page(request: HttpRequest):
                 # Only consider prices from now forward
                 now_utc = TimeUtils.now_utc()
                 prices_list = list(
-                    ElectricityPrice.objects.filter(start_time__gte=now_utc).order_by("start_time").values("start_time", "price_kwh", "id")
+                    ElectricityPrice.objects.filter(start_time__gte=now_utc)
+                    .order_by("start_time")
+                    .values("start_time", "price_kwh", "id")
                 )
                 cheapest_hours = get_cheapest_hours(
                     prices_list,
                     device.day_transfer_price,
                     device.night_transfer_price,
                     device.run_hours_per_day,
-                    local_tz
+                    local_tz,
                 )
                 assigned_count = 0
                 for hour in cheapest_hours:
-                    price_entry = next((p for p in prices_list if TimeUtils.to_utc(p["start_time"]).strftime("%Y-%m-%d %H:%M") == hour.strftime("%Y-%m-%d %H:%M")), None)
+                    price_entry = next(
+                        (
+                            p
+                            for p in prices_list
+                            if TimeUtils.to_utc(p["start_time"]).strftime(
+                                "%Y-%m-%d %H:%M"
+                            )
+                            == hour.strftime("%Y-%m-%d %H:%M")
+                        ),
+                        None,
+                    )
                     if price_entry:
                         assignment, created = DeviceAssignment.objects.get_or_create(
                             user=device.user,  # assign to device owner
                             device=device,
-                            electricity_price_id=price_entry["id"]
+                            electricity_price_id=price_entry["id"],
                         )
                         if created:
                             assigned_count += 1
                 result = f"Assigned {assigned_count} cheapest hours to {device.familiar_name} for user {device.user.username} (override 24h check)"
             else:
                 result = "Invalid device selection for cheapest hours assignment."
-    return render(request, "app/admin_test_page.html", {
-        "devices": devices,
-        "prices": prices,
-        "result": result,
-        "assigned_hours": assigned_hours,
-    })
-
-
+    return render(
+        request,
+        "app/admin_test_page.html",
+        {
+            "devices": devices,
+            "prices": prices,
+            "result": result,
+            "assigned_hours": assigned_hours,
+        },
+    )

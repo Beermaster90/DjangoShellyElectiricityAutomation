@@ -89,13 +89,14 @@
             <p><strong>Defined Hours to Run:</strong> <span id="hoursNeededText">-</span></p>
             <p><strong>Device Status:</strong> <span id="deviceStatus">-</span></p>
             <p><strong>Device Running:</strong> <span id="deviceRunning">-</span></p>
+            <p><strong>Your Timezone:</strong> {{ user_timezone }}</p>
         </div>
 
         <!-- Price Table -->
         <table>
             <thead>
                 <tr>
-                    <th>Start Time (Local)</th>
+                    <th>Start Time ({{ user_timezone }})</th>
                     <th>Price (c/kWh)</th>
                     <th>Total Price (c/kWh)</th>
                     <th>Assigned</th>
@@ -103,9 +104,9 @@
             </thead>
             <tbody>
                 {% for price in prices %}
-                <tr class="{% if price.start_time|date:'H' == current_hour %}current-hour{% endif %}"
+                <tr class="{% if price.hour == current_hour %}current-hour{% endif %}"
                     data-assigned="{{ price.assigned_devices }}"
-                    data-hour="{{ price.start_time|date:'H' }}">
+                    data-hour="{{ price.hour }}">
                     <td class="price-time" data-utc="{{ price.start_time }}">{{ price.start_time|date:'d.m - H:i' }}</td>
                     <td class="price-value" data-price="{{ price.price_kwh }}">{{ price.price_kwh|floatformat:2 }} c/kWh</td>
                     <td class="total-price">-</td>

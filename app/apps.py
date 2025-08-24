@@ -23,13 +23,17 @@ class AppConfig(AppConfig):
 
         # Clear all existing logs at startup (configurable)
         try:
-            clear_logs_setting = AppSetting.objects.filter(key="CLEAR_LOGS_ON_STARTUP").first()
+            clear_logs_setting = AppSetting.objects.filter(
+                key="CLEAR_LOGS_ON_STARTUP"
+            ).first()
             if clear_logs_setting and clear_logs_setting.value == "1":
                 log_count = DeviceLog.objects.count()
                 DeviceLog.objects.all().delete()
                 print(f"Startup: Cleared {log_count} device logs from database")
             else:
-                print("Startup: Log clearing disabled via CLEAR_LOGS_ON_STARTUP setting")
+                print(
+                    "Startup: Log clearing disabled via CLEAR_LOGS_ON_STARTUP setting"
+                )
         except Exception as e:
             print(f"Warning: Could not clear logs at startup: {e}")
 

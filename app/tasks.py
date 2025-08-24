@@ -15,6 +15,7 @@ from app.utils.time_utils import TimeUtils
 import pytz
 from typing import Optional
 
+
 class DeviceController:
     """Controller for scheduled device and price operations."""
 
@@ -24,7 +25,11 @@ class DeviceController:
         try:
             response = call_fetch_prices(None)
             if isinstance(response, JsonResponse) and response.status_code != 200:
-                log_device_event(None, f"Schedule failed to fetch electricity prices. Response: {response.content}", "ERROR")
+                log_device_event(
+                    None,
+                    f"Schedule failed to fetch electricity prices. Response: {response.content}",
+                    "ERROR",
+                )
         except Exception as e:
             log_device_event(None, f"Error calling fetch-prices: {e}", "ERROR")
 
@@ -42,8 +47,7 @@ class DeviceController:
             devices = ShellyDevice.objects.all()
             for device in devices:
                 assigned = DeviceAssignment.objects.filter(
-                    device=device,
-                    electricity_price_id__in=active_price_ids
+                    device=device, electricity_price_id__in=active_price_ids
                 ).exists()
                 if not assigned:
                     DeviceController.toggle_shelly_device(device, "off")
@@ -59,31 +63,43 @@ class DeviceController:
         device_status = shelly_service.get_device_status()
         time.sleep(1.2)
         if "error" in device_status:
-            log_device_event(device, f"Error fetching status: {device_status['error']}", "ERROR")
+            log_device_event(
+                device, f"Error fetching status: {device_status['error']}", "ERROR"
+            )
             return
-        is_running = device_status.get("data", {}).get("device_status", {}).get("switch:0", {}).get("output", False)
+        is_running = (
+            device_status.get("data", {})
+            .get("device_status", {})
+            .get("switch:0", {})
+            .get("output", False)
+        )
         time.sleep(1.2)
         if (action == "off" and is_running) or (action == "on" and not is_running):
             request_factory = RequestFactory()
-            request = request_factory.get("/toggle-device-output/", {"device_id": device.device_id, "state": action})
+            request = request_factory.get(
+                "/toggle-device-output/",
+                {"device_id": device.device_id, "state": action},
+            )
             response = toggle_device_output(request)
             if isinstance(response, JsonResponse) and response.status_code == 200:
                 # Check if the response was blocked by debug setting
                 try:
-                    response_data = response.json() if hasattr(response, 'json') else {}
+                    response_data = response.json() if hasattr(response, "json") else {}
                 except:
                     response_data = {}
-                    
+
                 if response_data.get("status") == "blocked":
-                    log_device_event(device, f"Device toggle BLOCKED by SHELLY_STOP_REST_DEBUG: {response_data.get('message', 'No message')}", "INFO")
+                    log_device_event(
+                        device,
+                        f"Device toggle BLOCKED by SHELLY_STOP_REST_DEBUG: {response_data.get('message', 'No message')}",
+                        "INFO",
+                    )
                 else:
                     log_device_event(device, f"Device turned {action.upper()}", "INFO")
                 time.sleep(2)
             else:
-                log_device_event(device, f"Failed to turn {action.upper()} device. Response: {response.content}", "ERROR")
-
-
-
-
-
-
+                log_device_event(
+                    device,
+                    f"Failed to turn {action.upper()} device. Response: {response.content}",
+                    "ERROR",
+                )

@@ -8,6 +8,7 @@ import xml.etree.ElementTree as ET
 from ..logger import log_device_event
 from ..utils.security_utils import SecurityUtils
 
+
 class EntsoDataFetcher:
     def __init__(self, api_key=None):
         self.api_key = api_key
@@ -30,7 +31,9 @@ class EntsoDataFetcher:
             return self.parse_prices(response.content)
         except requests.RequestException as e:
             # Sanitize error message to hide API tokens
-            safe_error = SecurityUtils.get_safe_error_message(e, "ENTSOE API request failed")
+            safe_error = SecurityUtils.get_safe_error_message(
+                e, "ENTSOE API request failed"
+            )
             return {"error": safe_error}
 
     def parse_prices(self, xml_data):
@@ -42,10 +45,12 @@ class EntsoDataFetcher:
             for point in root.findall(".//ns:Point", ns):
                 position = point.find("ns:position", ns).text
                 price_amount = point.find("ns:price.amount", ns).text
-                prices.append({
-                    "position": int(position),
-                    "price": float(price_amount),
-                })
+                prices.append(
+                    {
+                        "position": int(position),
+                        "price": float(price_amount),
+                    }
+                )
             return prices
         except ET.ParseError as e:
             return {"error": f"XML Parse Error: {str(e)}"}

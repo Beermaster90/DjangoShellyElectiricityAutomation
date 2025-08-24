@@ -9,5 +9,5 @@ def log_device_event(device, message, status="INFO"):
     """
     # Sanitize the message to hide sensitive tokens/keys
     safe_message = SecurityUtils.sanitize_message(message)
-    
+
     DeviceLog.objects.create(device=device, message=safe_message, status=status)
