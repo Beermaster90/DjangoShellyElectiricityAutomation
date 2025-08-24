@@ -2,9 +2,9 @@
 
 {% block content %}
 
-<div class="jumbotron">
-    <h1>Cost Comparison Graphs</h1>
-    <p class="lead">Compare your actual electricity costs with what fixed pricing would have cost over the past year.</p>
+<div class="page-header">
+    <h2>Cost Comparison Graphs</h2>
+    <p class="text-muted">Compare your actual electricity costs (including VAT + transfer costs) with what fixed pricing would have cost over the same period.</p>
 </div>
 
 <div class="row">
@@ -55,56 +55,10 @@
             </div>
         </div>
 
-        <!-- Cost Summary -->
-        <div class="panel panel-info" id="summaryPanel">
-            <div class="panel-heading">
-                <h3 class="panel-title">Cost Summary & Savings Analysis</h3>
-            </div>
-            <div class="panel-body">
-                <div class="row">
-                    <div class="col-sm-4">
-                        <div class="text-center">
-                            <h3 class="text-success">Dynamic Pricing</h3>
-                            <h2 id="dynamicTotal" class="text-success">€0.00</h2>
-                            <p><small>Actual electricity prices</small></p>
-                        </div>
-                    </div>
-                    <div class="col-sm-4">
-                        <div class="text-center">
-                            <h3 class="text-info">Fixed Pricing</h3>
-                            <h2 id="fixedTotal" class="text-info">€0.00</h2>
-                            <p><small id="fixedPriceLabel">Fixed rate: 7.0c/kWh</small></p>
-                        </div>
-                    </div>
-                    <div class="col-sm-4">
-                        <div class="text-center">
-                            <h3>Total Savings</h3>
-                            <h2 id="savings" class="text-primary">€0.00</h2>
-                            <p><small id="savingsPercent" class="text-primary">0.0%</small></p>
-                        </div>
-                    </div>
-                </div>
-                <div class="row" style="margin-top: 20px;">
-                    <div class="col-sm-12">
-                        <div class="alert alert-info text-center">
-                            <strong id="savingsMessage">Calculating savings...</strong>
-                        </div>
-                    </div>
-                </div>
-                <div class="row" style="margin-top: 10px;">
-                    <div class="col-sm-12">
-                        <p class="text-muted text-center">
-                            <small id="usageInfo">Based on <span id="usagePeriods">0</span> periods with actual device usage over the available data period.</small>
-                        </p>
-                    </div>
-                </div>
-            </div>
-        </div>
-
         <!-- Graph Container -->
         <div class="panel panel-default">
             <div class="panel-heading">
-                <h3 class="panel-title">Cumulative Cost Comparison Over Time</h3>
+                <h3 class="panel-title">Total Cost Comparison Over Time (incl. VAT + Transfer Costs)</h3>
             </div>
             <div class="panel-body">
                 <canvas id="costChart" width="800" height="400"></canvas>
@@ -192,7 +146,7 @@
                     },
                     title: {
                         display: true,
-                        text: 'Cumulative Electricity Costs - Savings: €' + Math.abs(data.savings).toFixed(2) + ' (' + Math.abs(data.savings_percentage).toFixed(1) + '%)',
+                        text: 'Total Electricity Costs (VAT + Transfer Included) - Savings: €' + Math.abs(data.savings).toFixed(2) + ' (' + Math.abs(data.savings_percentage).toFixed(1) + '%)',
                         font: {
                             size: 16
                         }
@@ -239,90 +193,15 @@
         });
     }
 
-    function updateSummary(data) {
-        console.log('updateSummary called with:', data);
-        
-        // Update totals with larger, more prominent display
-        const elements = {
-            dynamicTotal: document.getElementById('dynamicTotal'),
-            fixedTotal: document.getElementById('fixedTotal'),
-            savings: document.getElementById('savings'),
-            savingsPercent: document.getElementById('savingsPercent'),
-            usagePeriods: document.getElementById('usagePeriods'),
-            fixedPriceLabel: document.getElementById('fixedPriceLabel'),
-            savingsMessage: document.getElementById('savingsMessage'),
-            usageInfo: document.getElementById('usageInfo')
-        };
-        
-        // Check for missing elements
-        for (const [name, element] of Object.entries(elements)) {
-            if (!element) {
-                console.error('Element not found:', name);
-                return;
-            }
-        }
-        
-        elements.dynamicTotal.textContent = '€' + data.total_dynamic.toFixed(2);
-        elements.fixedTotal.textContent = '€' + data.total_fixed.toFixed(2);
-        elements.savings.textContent = '€' + Math.abs(data.savings).toFixed(2);
-        elements.savingsPercent.textContent = Math.abs(data.savings_percentage).toFixed(1) + '%';
-        elements.usagePeriods.textContent = data.periods_with_usage;
-        
-        // Update fixed price label
-        elements.fixedPriceLabel.textContent = 'Fixed rate: ' + data.fixed_price + 'c/kWh';
-        
-        // Create detailed savings message
-        let savingsMessage = '';
-        let alertClass = 'alert-info';
-        
-        if (data.savings > 0) {
-            savingsMessage = '💰 You SAVED €' + data.savings.toFixed(2) + ' (' + data.savings_percentage.toFixed(1) + '%) by using dynamic pricing instead of fixed pricing!';
-            alertClass = 'alert-success';
-            elements.savings.className = 'text-success';
-            elements.savingsPercent.className = 'text-success';
-        } else if (data.savings < 0) {
-            const loss = Math.abs(data.savings);
-            savingsMessage = '📉 Fixed pricing would have saved €' + loss.toFixed(2) + ' (' + Math.abs(data.savings_percentage).toFixed(1) + '%) compared to dynamic pricing.';
-            alertClass = 'alert-warning';
-            elements.savings.className = 'text-danger';
-            elements.savingsPercent.className = 'text-danger';
-        } else {
-            savingsMessage = '🤔 Both pricing methods would cost exactly the same.';
-            alertClass = 'alert-info';
-            elements.savings.className = 'text-muted';
-            elements.savingsPercent.className = 'text-muted';
-        }
-        
-        // Update message and alert styling
-        elements.savingsMessage.textContent = savingsMessage;
-        const alertDiv = document.querySelector('.alert');
-        if (alertDiv) {
-            alertDiv.className = 'alert ' + alertClass + ' text-center';
-        }
-        
-        // Update usage info message
-        if (data.is_simulated) {
-            elements.usageInfo.innerHTML = '<small>⚠️ Simulated usage for <strong>' + data.total_periods + '</strong> periods (no actual device assignments found). This shows theoretical costs if your device ran continuously.</small>';
-            elements.usageInfo.className = 'text-warning text-center';
-        } else {
-            elements.usageInfo.innerHTML = '<small>✅ Based on <strong>' + data.periods_with_usage + '</strong> periods with actual device usage out of ' + data.total_periods + ' total periods available.</small>';
-            elements.usageInfo.className = 'text-success text-center';
-        }
-    }
-
     // Initialize chart on page load
     document.addEventListener('DOMContentLoaded', function() {
-        console.log('Page loaded, initializing graphs...');
-        console.log('Graph data:', graphData);
-        
         if (graphData && graphData.labels && graphData.labels.length > 0) {
             updateChart(graphData);
-            updateSummary(graphData);
         } else {
-            console.warn('No graph data available or empty data set');
             // Show a message to the user
-            document.querySelector('#costChart').getContext('2d').font = "16px Arial";
-            document.querySelector('#costChart').getContext('2d').fillText("No data available. Please check if you have electricity price data in the database.", 10, 50);
+            const ctx = document.querySelector('#costChart').getContext('2d');
+            ctx.font = "16px Arial";
+            ctx.fillText("No data available. Please check if you have electricity price data in the database.", 10, 50);
         }
     });
 
@@ -336,8 +215,17 @@
         // Show loading indicator
         document.getElementById('loadingIndicator').style.display = 'inline';
         
+        // Disable the submit button to prevent double-clicks
+        const submitButton = this.querySelector('button[type="submit"]');
+        const originalButtonText = submitButton.textContent;
+        submitButton.disabled = true;
+        submitButton.textContent = 'Updating...';
+        
         // Make AJAX request
-        fetch('/shellyapp/get-graph-data/?' + params.toString())
+        const urlParams = new URLSearchParams(formData);
+        urlParams.append('_t', Date.now()); // Add cache buster
+        
+        fetch('/shellyapp/get-graph-data/?' + urlParams.toString())
             .then(response => {
                 console.log('Response status:', response.status);
                 if (!response.ok) {
@@ -346,12 +234,14 @@
                 return response.json();
             })
             .then(data => {
-                console.log('Received data:', data);
                 if (data.error) {
+                    console.error('Server returned error:', data.error);
                     alert('Error: ' + data.error);
-                } else {
+                } else if (data.graph_data) {
                     updateChart(data.graph_data);
-                    updateSummary(data.graph_data);
+                } else {
+                    console.error('No graph_data found in response:', data);
+                    alert('Invalid response format from server');
                 }
             })
             .catch(error => {
@@ -359,8 +249,11 @@
                 alert('An error occurred while updating the graph: ' + error.message);
             })
             .finally(() => {
-                // Hide loading indicator
+                // Hide loading indicator and restore button
                 document.getElementById('loadingIndicator').style.display = 'none';
+                const submitButton = document.querySelector('#graphForm button[type="submit"]');
+                submitButton.disabled = false;
+                submitButton.textContent = 'Update Graph';
             });
     });
 </script>
