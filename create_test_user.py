@@ -16,15 +16,12 @@ def create_test_user():
     # Try to get existing admin user and print info
     admin_user = User.objects.filter(username="admin").first()
     if admin_user:
-        print(f"Admin user exists: {admin_user.username}")
-        print("Trying to reset admin password to 'admin123'")
-        admin_user.set_password("admin123")
-        admin_user.save()
-        print("Admin password set to 'admin123'")
+        print(f"✅ Admin user already exists: {admin_user.username}")
+        print("✅ Skipping password reset to preserve existing password")
     else:
-        print("Creating new admin user")
+        print("👤 Creating new admin user")
         User.objects.create_superuser("admin", "admin@example.com", "admin123")
-        print("Created admin user with password 'admin123'")
+        print("✅ Created admin user with password 'admin123'")
 
 
 if __name__ == "__main__":
