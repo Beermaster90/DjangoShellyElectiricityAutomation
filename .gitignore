@@ -1,0 +1,74 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pyc
+*.pyo
+*.pyd
+*.env
+*.venv
+env2/
+ENV/
+venv/
+env/
+*.sqlite3
+
+# Django
+db.sqlite3
+*.log
+staticfiles/
+media/
+local_settings.py
+
+# VS Code
+.vscode/
+.history/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Virtual environment
+env2/
+env/
+venv/
+env_new/
+
+# Pip
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Test & coverage
+htmlcov/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.tox/
+.pytest_cache/
+test-results/
+
+# Misc
+*.swp
+*.swo
+*.bak
+*.tmp
+
+# Node
+node_modules/
+
+# Other IDEs
+.idea/
+*.sublime-workspace
+*.sublime-project
+
+# Git
+.git/
+
+#Docker packages
+*.tar
+.vs/

@@ -1,0 +1,100 @@
+# Version control
+.git
+.gitignore
+
+# Python
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+build
+develop-eggs
+dist
+downloads
+eggs
+.eggs
+lib
+lib64
+parts
+sdist
+var
+wheels
+*.egg-info
+.installed.cfg
+*.egg
+
+# Virtual environments
+venv
+env
+env_new
+ENV
+env.bak
+venv.bak
+
+# Database files
+db.sqlite3
+*.db
+data/
+
+# Logs and temporary files
+*.log
+logs/
+*.tmp
+*.temp
+
+# IDE and editor files
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Test files
+test_*.py
+*_test.py
+tests/
+.pytest_cache
+.coverage
+htmlcov/
+
+# Documentation
+*.md
+docs/
+
+# Docker files (don't copy these into the image)
+Dockerfile*
+docker-compose*.yml
+.dockerignore
+
+# Shell scripts and batch files (unless needed)
+*.sh
+*.cmd
+
+# Deployment and development files
+deploy_*
+dev-*
+*_local.*
+
+# Static files (if they'll be collected anyway)
+static/
+staticfiles/
+
+# Media files (should be handled separately)
+media/
+
+# Environment files
+.env
+.env.*
+
+# Build artifacts
+shelly_django.tar

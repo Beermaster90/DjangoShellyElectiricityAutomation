@@ -1,0 +1,572 @@
+{% extends "app/layout.html" %}
+
+{% block content %}
+
+{% if user.is_authenticated %}
+    {% if devices %}
+    <div class="table-container">
+
+        <style>
+            /* General styling */
+            body {
+                font-family: Arial, sans-serif;
+                background-color: #f8f9fa;
+            }
+
+            .table-container {
+                max-width: 900px;
+                margin: 20px auto;
+                background: white;
+                padding: 15px;
+                border-radius: 8px;
+                box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.1);
+            }
+
+            table {
+                width: 100%;
+                border-collapse: collapse;
+                margin-bottom: 20px;
+            }
+
+            th, td {
+                padding: 12px 15px;
+                border: 1px solid #ddd;
+                text-align: center;
+            }
+
+            th {
+                background-color: #007bff;
+                color: white;
+                font-weight: bold;
+            }
+
+            tr.cheapest-hour {
+                background-color: #28a745 !important;
+                color: white;
+            }
+
+            h1 {
+                text-align: center;
+                margin-bottom: 20px;
+                color: #333;
+            }
+
+            .chart-container {
+                width: 100%;
+                max-width: 900px;
+                height: 400px;
+                margin: 0 auto;
+            }
+
+            canvas {
+                max-width: 100%;
+                height: 400px !important;
+            }
+
+            .current-hour {
+                background-color: lightblue !important;
+            }
+
+            .price-row:hover {
+                background-color: #f0f8ff !important;
+            }
+
+            /* Device Information Layout */
+            .device-info-columns {
+                display: flex;
+                gap: 30px;
+                flex-wrap: wrap;
+            }
+
+            .device-info-left,
+            .device-info-right {
+                flex: 1;
+                min-width: 300px;
+            }
+
+            .device-automation-row {
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                margin-bottom: 10px;
+            }
+
+            .device-automation-row strong {
+                margin-right: 5px;
+            }
+
+            #deviceEnabledText {
+                font-weight: bold;
+                min-width: 60px;
+            }
+
+            /* Toggle Switch Styles - Made Smaller */
+            .toggle-switch {
+                position: relative;
+                display: inline-block;
+                width: 45px;
+                height: 24px;
+            }
+
+            .toggle-checkbox {
+                opacity: 0;
+                width: 0;
+                height: 0;
+            }
+
+            .toggle-label {
+                position: absolute;
+                cursor: pointer;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                background-color: #ccc;
+                transition: .3s;
+                border-radius: 24px;
+                display: block;
+            }
+
+            .toggle-slider {
+                position: absolute;
+                content: "";
+                height: 18px;
+                width: 18px;
+                left: 3px;
+                bottom: 3px;
+                background-color: white;
+                transition: .3s;
+                border-radius: 50%;
+                box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+            }
+
+            .toggle-checkbox:checked + .toggle-label {
+                background-color: #2196F3;
+            }
+
+            .toggle-checkbox:focus + .toggle-label {
+                box-shadow: 0 0 1px #2196F3;
+            }
+
+            .toggle-checkbox:checked + .toggle-label .toggle-slider {
+                transform: translateX(21px);
+            }
+
+            .toggle-label:hover {
+                background-color: #bbb;
+            }
+
+            .toggle-checkbox:checked + .toggle-label:hover {
+                background-color: #1976D2;
+            }
+        </style>
+
+        <!-- Device Selection Dropdown -->
+        <select id="deviceSelect" onchange="updateDeviceData()">
+            {% for device in devices %}
+            <option value="{{ device.device_id }}"
+                    data-day-price="{{ device.day_transfer_price }}"
+                    data-night-price="{{ device.night_transfer_price }}"
+                    data-hours-needed="{{ device.run_hours_per_day }}"
+                    data-cheapest-hours="{{ device.cheapest_hours|join:',' }}"
+                    data-device-status="{{ device.status }}">
+                {{ device.familiar_name }}
+            </option>
+            {% endfor %}
+        </select>
+
+        <!-- Transfer Prices Display -->
+        <div class="table-container">
+            <h2>Device Information</h2>
+            <div class="device-info-columns">
+                <!-- Left Column -->
+                <div class="device-info-left">
+                    <div class="device-automation-row">
+                        <strong>Device Automation:</strong>
+                        <div class="toggle-switch">
+                            <input type="checkbox" id="deviceEnabledToggle" class="toggle-checkbox" onchange="toggleDeviceStatus()">
+                            <label for="deviceEnabledToggle" class="toggle-label">
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
+                        <span id="deviceEnabledText">Disabled</span>
+                    </div>
+                    <p><strong>Day Transfer Price:</strong> <span id="dayPriceText">-</span> c/kWh (07:00 - 21:59)</p>
+                    <p><strong>Night Transfer Price:</strong> <span id="nightPriceText">-</span> c/kWh (22:00 - 06:59)</p>
+                    <p><strong>Defined Hours to Run:</strong> <span id="hoursNeededText">-</span></p>
+                </div>
+                
+                <!-- Right Column -->
+                <div class="device-info-right">
+                    <p><strong>Device Status:</strong> <span id="deviceStatus">-</span></p>
+                    <p><strong>Device Running:</strong> <span id="deviceRunning">-</span></p>
+                    <p><strong>Your Timezone:</strong> {{ user_timezone }}</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Price Table -->
+        <table>
+            <thead>
+                <tr>
+                    <th>Start Time ({{ user_timezone }})</th>
+                    <th>Price (c/kWh)</th>
+                    <th>Total Price (c/kWh)</th>
+                    <th>Assigned</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for price in prices %}
+                <tr class="{% if price.hour == current_hour %}current-hour{% endif %} price-row"
+                    data-assigned="{{ price.assigned_devices }}"
+                    data-hour="{{ price.hour }}"
+                    data-price-id="{{ price.id }}"
+                    style="cursor: pointer;"
+                    title="Double-click to assign/unassign device for this hour">
+                    <td class="price-time" data-utc="{{ price.start_time }}">{{ price.start_time|date:'d.m - H:i' }}</td>
+                    <td class="price-value" data-price="{{ price.price_kwh }}">{{ price.price_kwh|floatformat:2 }} c/kWh</td>
+                    <td class="total-price">-</td>
+                    <td class="assigned">-</td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="4">No prices available.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+        <script>
+            document.addEventListener("DOMContentLoaded", function () {
+                convertTimesToLocal();
+                updateDeviceData();
+                updateTotalPrices();
+                updateAssignedColumn(); // Ensure assigned column updates on page load
+                highlightCurrentHour();
+                
+                // Add double-click event handlers to price rows
+                document.querySelectorAll('.price-row').forEach(row => {
+                    row.addEventListener('dblclick', function(e) {
+                        e.preventDefault();
+                        toggleAssignment(this);
+                    });
+                });
+            });
+
+            document.getElementById("deviceSelect").addEventListener("change", function () {
+                updateDeviceData();
+                updateAssignedColumn(); // Ensure assigned column updates on device change
+            });
+
+            function convertTimesToLocal() {
+                document.querySelectorAll(".price-time").forEach(el => {
+                    let utcString = el.dataset.utc;
+                    let localDate = new Date(utcString);
+
+                    // Format as "DD.MM - HH:MM"
+                    let formattedTime = ('0' + localDate.getDate()).slice(-2) + "." +
+                        ('0' + (localDate.getMonth() + 1)).slice(-2) + " - " +
+                        ('0' + localDate.getHours()).slice(-2) + ":" +
+                        ('0' + localDate.getMinutes()).slice(-2);
+
+                    el.innerText = formattedTime; // Update the displayed time
+                });
+            }
+
+            function updateAssignedColumn() {
+                let selectedDeviceId = document.getElementById("deviceSelect").value.trim();
+                document.querySelectorAll("tbody tr").forEach(row => {
+                    let assignedDevices = row.getAttribute("data-assigned") || "";
+                    // Ensure all IDs are compared as strings and trimmed
+                    let assignedList = assignedDevices.split(",").map(id => id.trim()).filter(id => id.length > 0);
+                    let isAssigned = assignedList.includes(selectedDeviceId);
+                    row.querySelector(".assigned").textContent = isAssigned ? "X" : "";
+                });
+            }
+
+            function updateTotalPrices() {
+                let dayTransferPrice = parseFloat(document.getElementById("dayPriceText").textContent.replace(",", ".")) || 0;
+                let nightTransferPrice = parseFloat(document.getElementById("nightPriceText").textContent.replace(",", ".")) || 0;
+                let vatMultiplier = 1.255; // 25.5% VAT
+
+                document.querySelectorAll("tbody tr").forEach(row => {
+                    let hour = new Date(row.querySelector(".price-time").dataset.utc).getHours();
+                    let price = parseFloat(row.querySelector(".price-value").dataset.price.replace(",", "."));
+
+                    if (!isNaN(price)) {
+                        let totalPrice = (hour >= 7 && hour < 22) ? (price + dayTransferPrice) : (price + nightTransferPrice);
+
+                        // Apply VAT calculation
+                        let priceWithVAT = price * vatMultiplier;
+                        let totalWithVAT = totalPrice * vatMultiplier;
+
+                        // Round only for display
+                        row.querySelector(".price-value").textContent = priceWithVAT.toFixed(2) + " c/kWh";
+                        row.querySelector(".total-price").textContent = totalWithVAT.toFixed(2) + " c/kWh";
+                    }
+                });
+            }
+
+
+            let isFetchingDeviceStatus = false;
+
+            function toggleDeviceStatus() {
+                const deviceSelect = document.getElementById("deviceSelect");
+                const selectedDeviceId = deviceSelect.value;
+                const isEnabled = document.getElementById("deviceEnabledToggle").checked;
+                
+                if (!selectedDeviceId) {
+                    showNotification('Please select a device first', 'error');
+                    return;
+                }
+
+                // Show loading state
+                document.getElementById("deviceEnabledText").textContent = "Updating...";
+
+                fetch('/shellyapp/toggle-device-status/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        device_id: selectedDeviceId,
+                        enabled: isEnabled
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        // Update the text and selected option data
+                        document.getElementById("deviceEnabledText").textContent = data.enabled ? "Enabled" : "Disabled";
+                        document.getElementById("deviceEnabledText").style.color = data.enabled ? "green" : "red";
+                        
+                        // Update the data attribute
+                        const selectedOption = deviceSelect.options[deviceSelect.selectedIndex];
+                        selectedOption.setAttribute('data-device-status', data.enabled ? '1' : '0');
+                        
+                        showNotification(data.message, 'success');
+                    } else {
+                        // Revert toggle state on error
+                        document.getElementById("deviceEnabledToggle").checked = !isEnabled;
+                        document.getElementById("deviceEnabledText").textContent = isEnabled ? "Disabled" : "Enabled";
+                        showNotification('Error: ' + data.error, 'error');
+                    }
+                })
+                .catch(error => {
+                    // Revert toggle state on error
+                    document.getElementById("deviceEnabledToggle").checked = !isEnabled;
+                    document.getElementById("deviceEnabledText").textContent = isEnabled ? "Disabled" : "Enabled";
+                    showNotification('Network error occurred', 'error');
+                });
+            }
+
+            function updateDeviceData() {
+                if (isFetchingDeviceStatus) return;
+                isFetchingDeviceStatus = true;
+
+                let deviceSelect = document.getElementById("deviceSelect");
+                let selectedOption = deviceSelect.options[deviceSelect.selectedIndex];
+
+                let selectedDeviceId = selectedOption.value;
+                let dayPrice = parseFloat(selectedOption.getAttribute("data-day-price")) || 0;
+                let nightPrice = parseFloat(selectedOption.getAttribute("data-night-price")) || 0;
+                let cheapestHours = selectedOption.getAttribute("data-cheapest-hours") || "";
+                let hoursNeeded = parseInt(selectedOption.getAttribute("data-hours-needed")) || 0;
+                let deviceStatus = parseInt(selectedOption.getAttribute("data-device-status")) || 0;
+
+                document.getElementById("dayPriceText").innerText = dayPrice.toFixed(2);
+                document.getElementById("nightPriceText").innerText = nightPrice.toFixed(2);
+                document.getElementById("hoursNeededText").innerText = hoursNeeded + " h";
+
+                // Update toggle switch and status text
+                const isEnabled = deviceStatus === 1;
+                document.getElementById("deviceEnabledToggle").checked = isEnabled;
+                document.getElementById("deviceEnabledText").textContent = isEnabled ? "Enabled" : "Disabled";
+                document.getElementById("deviceEnabledText").style.color = isEnabled ? "green" : "red";
+
+                updateTotalPrices();
+                updateAssignedColumn();
+
+                // Only fetch device status if automation is enabled
+                if (!isEnabled) {
+                    document.getElementById("deviceStatus").innerText = "Automation Disabled";
+                    document.getElementById("deviceRunning").innerText = "N/A";
+                    document.getElementById("deviceStatus").style.color = "orange";
+                    document.getElementById("deviceRunning").style.color = "orange";
+                    isFetchingDeviceStatus = false;
+                    return;
+                }
+
+                // Fetch device status and update UI
+                fetch(`/shellyapp/fetch-device-status/?device_id=${selectedDeviceId}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.error) {
+                            document.getElementById("deviceStatus").innerText = "Error";
+                            document.getElementById("deviceRunning").innerText = data.error;
+                            return;
+                        }
+
+                        document.getElementById("deviceStatus").innerText = data.online ? "Online" : "Offline";
+                        document.getElementById("deviceRunning").innerText = data.running;
+
+                        // Color styling
+                        document.getElementById("deviceStatus").style.color = data.online ? "green" : "red";
+                        document.getElementById("deviceRunning").style.color = data.running === "running" ? "green" : "red";
+                    })
+                    .catch(error => {
+                        document.getElementById("deviceStatus").innerText = "Error";
+                        document.getElementById("deviceRunning").innerText = error.message;
+                    })
+                    .finally(() => {
+                        isFetchingDeviceStatus = false;
+                    });
+            }
+
+            function highlightCurrentHour() {
+                let currentHour = new Date().getHours();
+                document.querySelectorAll("tbody tr").forEach(row => {
+                    let hour = parseInt(row.getAttribute("data-hour"));
+                    if (hour === currentHour) {
+                        row.classList.add("current-hour");
+                    } else {
+                        row.classList.remove("current-hour");
+                    }
+                });
+            }
+
+            // Reapply highlight on interval
+            setInterval(highlightCurrentHour, 60000); // Check every minute
+
+            function toggleAssignment(row) {
+                const deviceSelect = document.getElementById("deviceSelect");
+                const selectedDeviceId = deviceSelect.value;
+                const priceId = row.getAttribute('data-price-id');
+                
+                if (!selectedDeviceId || !priceId) {
+                    alert('Please select a device first');
+                    return;
+                }
+
+                // Check if device automation is enabled
+                const selectedOption = deviceSelect.options[deviceSelect.selectedIndex];
+                const deviceStatus = parseInt(selectedOption.getAttribute("data-device-status")) || 0;
+                
+                if (deviceStatus !== 1) {
+                    showNotification('Device automation is disabled. Enable it first to manage assignments.', 'error');
+                    return;
+                }
+
+                // Visual feedback - disable the row temporarily
+                row.style.opacity = '0.6';
+                row.style.pointerEvents = 'none';
+
+                fetch('/shellyapp/toggle-assignment/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        device_id: selectedDeviceId,
+                        price_id: parseInt(priceId)
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        // Update the data-assigned attribute for this row
+                        const selectedDeviceId = document.getElementById("deviceSelect").value.trim();
+                        let assignedDevices = row.getAttribute("data-assigned") || "";
+                        let assignedList = assignedDevices.split(",").map(id => id.trim()).filter(id => id.length > 0);
+                        
+                        if (data.assigned) {
+                            // Add device ID if not already present
+                            if (!assignedList.includes(selectedDeviceId)) {
+                                assignedList.push(selectedDeviceId);
+                            }
+                        } else {
+                            // Remove device ID
+                            assignedList = assignedList.filter(id => id !== selectedDeviceId);
+                        }
+                        
+                        // Update the data attribute
+                        row.setAttribute("data-assigned", assignedList.join(","));
+                        
+                        // Update the assigned column
+                        updateAssignedColumn();
+                        
+                        // Show success message briefly
+                        showNotification(data.message, 'success');
+                    } else {
+                        console.error('Assignment toggle failed:', data.error);
+                        showNotification('Error: ' + data.error, 'error');
+                    }
+                })
+                .catch(error => {
+                    console.error('Network error:', error);
+                    showNotification('Network error occurred', 'error');
+                })
+                .finally(() => {
+                    // Re-enable the row
+                    row.style.opacity = '1';
+                    row.style.pointerEvents = 'auto';
+                });
+            }
+
+            function showNotification(message, type) {
+                // Create notification element
+                const notification = document.createElement('div');
+                notification.style.cssText = `
+                    position: fixed;
+                    top: 80px;
+                    right: 20px;
+                    padding: 12px 24px;
+                    border-radius: 6px;
+                    color: white;
+                    font-weight: bold;
+                    font-size: 14px;
+                    z-index: 9999;
+                    opacity: 0;
+                    transition: opacity 0.3s ease;
+                    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+                    max-width: 350px;
+                    word-wrap: break-word;
+                    ${type === 'success' ? 'background-color: #28a745;' : 'background-color: #dc3545;'}
+                `;
+                notification.textContent = message;
+                
+                document.body.appendChild(notification);
+                
+                // Show notification
+                setTimeout(() => notification.style.opacity = '1', 10);
+                
+                // Hide and remove notification
+                setTimeout(() => {
+                    notification.style.opacity = '0';
+                    setTimeout(() => {
+                        if (notification.parentNode) {
+                            document.body.removeChild(notification);
+                        }
+                    }, 300);
+                }, 3000);
+            }
+
+            // Chart.js code can remain as is
+
+        </script>
+    </div>
+    {% else %}
+        <div class="table-container">
+            <h2>You have no devices assigned, please set them from the Control Panel.</h2>
+        </div>
+    {% endif %}
+{% else %}
+<div class="table-container">
+    <h2>Please log in to view dashboard.</h2>
+    <a href="{% url 'login' %}" class="btn btn-primary">Go to Login</a>
+</div>
+{% endif %}
+
+{% endblock %}
