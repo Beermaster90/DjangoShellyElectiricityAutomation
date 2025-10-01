@@ -18,10 +18,11 @@ def start_scheduler():
     scheduler = BackgroundScheduler()
     scheduler.add_jobstore(DjangoJobStore(), "default")
 
-    # Schedule the fetch electricity prices task (Every hour at HH:00)
+    # Schedule the fetch electricity prices task (Every hour at HH:00 and HH:03)
+    # HH:00 for regular updates, HH:03 as a backup in case the first attempt fails
     scheduler.add_job(
         DeviceController.fetch_electricity_prices,
-        trigger=CronTrigger(hour="*", minute=0),
+        trigger=CronTrigger(hour="*", minute="0,3"),
         id="fetch_prices",
         max_instances=1,
         replace_existing=True,
@@ -30,7 +31,7 @@ def start_scheduler():
     # Schedule the Shelly device control task (Every 15 minutes)
     scheduler.add_job(
         DeviceController.control_shelly_devices,
-        trigger=CronTrigger(minute="1,15,30,45"),  # Runs at these exact minutes
+        trigger=CronTrigger(minute="0,15,30,45"),  # Run at the start of each 15-minute period
         id="control_shelly",
         max_instances=1,
         replace_existing=True,

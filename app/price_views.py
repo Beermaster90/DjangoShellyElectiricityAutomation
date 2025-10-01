@@ -18,6 +18,7 @@ from .logger import log_device_event
 from .device_assignment_manager import DeviceAssignmentManager  # Import the class
 from app.utils.time_utils import TimeUtils
 from app.utils.security_utils import SecurityUtils
+from app.utils.db_utils import with_db_retries
 import pytz  # pip install pytz
 
 LOCAL_TZ = pytz.timezone("Europe/Helsinki")  # change if needed
@@ -63,6 +64,10 @@ def call_fetch_prices(request):
         price_series = client.query_day_ahead_prices(
             country_code=area_code, start=start, end=end
         )
+        
+        # Resample to 15-minute intervals using forward fill (each 15-min gets same price as the hour)
+        price_series = price_series.resample('15min').ffill()
+        
     except Exception as e:
         # Sanitize error to hide API key and other sensitive information
         safe_error = SecurityUtils.get_safe_error_message(
@@ -83,14 +88,34 @@ def call_fetch_prices(request):
     # Convert `period_start` to string format for database saving
     period_start_str = period_start.strftime("%Y%m%d%H%M")
 
-    # Build a list of price points from the series.
-    price_points = [
-        {"position": i, "price": price}  # in e/MWh
-        for i, (timestamp, price) in enumerate(price_series.items(), start=1)
-    ]
-
-    # Save prices to the database (converted to cents/kWh)
-    save_prices_for_period(period_start_str, price_points)
+    # Save prices directly from the resampled series
+    conversion_factor = Decimal("0.1")  # Convert from EUR/MWh to cents/kWh
+    new_entries_added = False
+    
+    for timestamp, price in price_series.items():
+        start_time = TimeUtils.to_utc(timestamp)
+        end_time = TimeUtils.to_utc(timestamp + pd.Timedelta(minutes=15))
+        price_c_per_kwh = Decimal(str(price)) * conversion_factor
+        
+        _, created = ElectricityPrice.objects.update_or_create(
+            start_time=start_time,
+            end_time=end_time,
+            defaults={"price_kwh": price_c_per_kwh},
+        )
+        if created:
+            new_entries_added = True
+            
+    # Update cheapest hours if new prices were added
+    if new_entries_added:
+        log_device_event(None, "New electricity prices fetched. Updating cheapest hours.", "INFO")
+        set_cheapest_hours()
+        
+        # Import here to avoid circular import
+        from app.tasks import DeviceController
+        
+        # Run device control check immediately after price update
+        log_device_event(None, "Running immediate device control check after price update.", "INFO")
+        DeviceController.control_shelly_devices()
 
     # Convert price timestamps to UTC formatted strings
     prices_dict = {
@@ -102,60 +127,8 @@ def call_fetch_prices(request):
     return JsonResponse({"prices": prices_dict})
 
 
-def save_prices_for_period(period_start_str, price_points):
-    """
-    Save price points to the database, converting from €/MWh to cents/kWh.
 
-    Only calls `set_cheapest_hours()` if new price entries were added.
-    """
-    period_start = datetime.strptime(period_start_str, "%Y%m%d%H%M")
-    conversion_factor = Decimal("0.1")
-
-    new_entries_added = False  # Track if we add any new entries
-
-    for point in price_points:
-        position = point.get("position")
-        try:
-            price_e_per_mwh = Decimal(str(point.get("price")))
-        except InvalidOperation:
-            continue  # Skip invalid price entries
-
-        price_c_per_kwh = price_e_per_mwh * conversion_factor
-        start_time = TimeUtils.to_utc(period_start + timedelta(hours=position - 1))
-        end_time = TimeUtils.to_utc(start_time + timedelta(hours=1))
-
-        # Check if this price record already exists
-        obj, created = ElectricityPrice.objects.update_or_create(
-            start_time=start_time,
-            end_time=end_time,
-            defaults={"price_kwh": price_c_per_kwh},  # Store as c/kWh
-        )
-
-        if created:
-            new_entries_added = True  # Mark that we inserted new data
-
-    # **Only call `set_cheapest_hours()` if new prices were added**
-
-    if new_entries_added:
-        log_device_event(
-            None, "New electricity prices fetched. Updating cheapest hours.", "INFO"
-        )
-        if len(price_points) <= 24:  # Ensure more than 24 price points exist
-            print(
-                f"Skipping cheapest hour assignment: Only {len(price_points)} prices received, expected more than 24."
-            )
-            log_device_event(
-                None,
-                "Incomplete price data received. Skipping cheapest hour assignment.",
-                "WARN",
-            )
-        else:
-            set_cheapest_hours()
-    # else:
-    #     print("No new price data inserted. Skipping cheapest hours update.")
-    #     log_device_event(None, "No new prices detected. Skipping cheapest hour assignment.", "INFO")
-
-
+@with_db_retries(max_attempts=3, delay=1)
 def set_cheapest_hours():
     """Assigns devices to the cheapest hours for the next 24 hours."""
     try:
@@ -263,14 +236,16 @@ def get_cheapest_hours(
             ts = local_tz.localize(ts)
         local_ts = ts.astimezone(local_tz)  # guarantees local clock time
 
-        # 2️⃣  Day or night in *local* clock
-        transfer = day_tp if 7 <= local_ts.hour < 22 else night_tp
+        # 2️⃣  Day or night in *local* clock (7:00-21:59 is day time)
+        is_daytime = (7 <= local_ts.hour < 22) or (local_ts.hour == 22 and local_ts.minute == 0)
+        transfer = day_tp if is_daytime else night_tp
 
         # 3️⃣  Total price using Decimal to avoid rounding surprises
         total = Decimal(str(entry["price_kwh"])) + transfer
 
         enriched.append((total, ts))  # keep original tz for caller
 
-    # 4️⃣  Pick the N cheapest
+    # 4️⃣  Pick the N cheapest 15-minute periods (hours_needed * 4)
     enriched.sort(key=lambda x: x[0])
-    return [slot for _, slot in enriched[:hours_needed]]
+    periods_needed = hours_needed * 4  # Convert hours to 15-minute periods
+    return [slot for _, slot in enriched[:periods_needed]]

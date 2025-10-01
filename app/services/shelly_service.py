@@ -4,6 +4,7 @@ from ..models import (
     AppSetting,
 )  # Import the ShellyDevice model and AppSetting
 from ..utils.security_utils import SecurityUtils
+from ..utils.rate_limiter import shelly_rate_limiter
 import time
 
 
@@ -40,7 +41,10 @@ class ShellyService:
         }
 
         try:
-            response = requests.get(url, params=params, timeout=5)
+            # Wait if needed to comply with rate limits
+            shelly_rate_limiter.wait_if_needed(self.device_name)
+            
+            response = requests.get(url, params=params, timeout=10)  # Increased timeout
             response.raise_for_status()
             status_data = response.json()
 
@@ -98,7 +102,10 @@ class ShellyService:
         }
 
         try:
-            response = requests.post(url, params=params, data=data, timeout=5)
+            # Wait if needed to comply with rate limits
+            shelly_rate_limiter.wait_if_needed(self.device_name)
+            
+            response = requests.post(url, params=params, data=data, timeout=10)  # Increased timeout
             response.raise_for_status()
             return response.json()  # Parse JSON response
         except requests.RequestException as e:

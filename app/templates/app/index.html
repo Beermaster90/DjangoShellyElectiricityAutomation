@@ -217,9 +217,9 @@
             </thead>
             <tbody>
                 {% for price in prices %}
-                <tr class="{% if price.hour == current_hour %}current-hour{% endif %} price-row"
+                <tr class="{% if price.time_key == current_time_key %}current-hour{% endif %} price-row"
                     data-assigned="{{ price.assigned_devices }}"
-                    data-hour="{{ price.hour }}"
+                    data-time-key="{{ price.time_key }}"
                     data-price-id="{{ price.id }}"
                     style="cursor: pointer;"
                     title="Double-click to assign/unassign device for this hour">
@@ -244,7 +244,6 @@
                 updateDeviceData();
                 updateTotalPrices();
                 updateAssignedColumn(); // Ensure assigned column updates on page load
-                highlightCurrentHour();
                 
                 // Add double-click event handlers to price rows
                 document.querySelectorAll('.price-row').forEach(row => {
@@ -426,10 +425,11 @@
             }
 
             function highlightCurrentHour() {
-                let currentHour = new Date().getHours();
+                const now = new Date();
+                const currentKey = `${String(now.getHours()).padStart(2, '0')}:${String(Math.floor(now.getMinutes() / 15) * 15).padStart(2, '0')}`;
                 document.querySelectorAll("tbody tr").forEach(row => {
-                    let hour = parseInt(row.getAttribute("data-hour"));
-                    if (hour === currentHour) {
+                    const timeKey = row.getAttribute("data-time-key");
+                    if (timeKey === currentKey) {
                         row.classList.add("current-hour");
                     } else {
                         row.classList.remove("current-hour");
@@ -437,8 +437,11 @@
                 });
             }
 
-            // Reapply highlight on interval
-            setInterval(highlightCurrentHour, 60000); // Check every minute
+            // Initial highlight
+            highlightCurrentHour();
+            
+            // Reapply highlight every minute
+            setInterval(highlightCurrentHour, 60000); // Update every minute
 
             function toggleAssignment(row) {
                 const deviceSelect = document.getElementById("deviceSelect");

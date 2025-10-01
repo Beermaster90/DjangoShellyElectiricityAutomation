@@ -85,15 +85,17 @@ def get_common_context(request: HttpRequest) -> Dict[str, Any]:
         price["assigned_devices"] = ",".join(assigned_devices_map.get(price["id"], []))
         # Convert UTC time to user's timezone for hour comparison
         price_user_tz = TimeUtils.to_user_timezone(price["start_time"], request.user)
-        price["hour"] = str(price_user_tz.hour)  # Extract user timezone hour
+        # Store both hour and 15-minute period information
+        price["hour"] = str(price_user_tz.hour)
+        price["time_key"] = f"{price_user_tz.hour:02d}:{price_user_tz.minute:02d}"  # Format: "HH:MM"
         price["start_time"] = price["start_time"].isoformat()
         price["end_time"] = price["end_time"].isoformat()
 
     assignment_manager = DeviceAssignmentManager(request.user)
     devices = assignment_manager.get_device_cheapest_hours(devices)
-    current_hour = str(
-        now_user_tz.hour
-    )  # Use user timezone hour for template comparison
+    # Round to nearest 15 minutes for current_time_key
+    rounded_minutes = (now_user_tz.minute // 15) * 15
+    current_time_key = f"{now_user_tz.hour:02d}:{rounded_minutes:02d}"  # Format: "HH:MM"
     current_time = now_utc.strftime("%Y-%m-%d %H:%M")  # Keep full timestamp in UTC
     user_timezone_name = TimeUtils.get_user_timezone_name(request.user)
 
@@ -104,7 +106,7 @@ def get_common_context(request: HttpRequest) -> Dict[str, Any]:
         "day_transfer_price": day_transfer_price,
         "night_transfer_price": night_transfer_price,
         "hours_needed": hours_needed,
-        "current_hour": current_hour,
+        "current_time_key": current_time_key,
         "current_time": current_time,
         "user_timezone": user_timezone_name,
         "title": "Landing Page",
