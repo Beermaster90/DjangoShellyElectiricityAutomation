@@ -73,62 +73,89 @@ class DeviceController:
                 log_device_event(None, "No devices with automation enabled found", "INFO")
                 return
             
-            # Check for new price assignments and update device states accordingly
-            assignment_updates = []
+            # Process devices one at a time with proper rate limiting
             for device in devices:
-                # Check if this 15-minute period is assigned
-                assigned = DeviceAssignment.objects.filter(
-                    device=device,
-                    electricity_price_id__in=active_price_ids
-                ).exists()
-                
-                # Get the device's current running state to minimize unnecessary toggles
-                shelly_service = ShellyService(device.device_id)
-                device_status = shelly_service.get_device_status()
-                
-                if "error" in device_status:
+                try:
+                    # Check if this 15-minute period is assigned
+                    assigned = DeviceAssignment.objects.filter(
+                        device=device,
+                        electricity_price_id__in=active_price_ids
+                    ).exists()
+                    
+                    # Get initial device state
+                    shelly_service = ShellyService(device.device_id)
+                    device_status = shelly_service.get_device_status()
+                    
+                    if "error" in device_status:
+                        log_device_event(
+                            device,
+                            f"Error fetching initial status: {device_status['error']}",
+                            "ERROR"
+                        )
+                        continue
+                    
+                    is_running = (
+                        device_status.get("data", {})
+                        .get("device_status", {})
+                        .get("switch:0", {})
+                        .get("output", False)
+                    )
+                    
+                    # Log detailed state information
                     log_device_event(
                         device,
-                        f"Error fetching status during period check: {device_status['error']}",
+                        f"Period {start_time.strftime('%Y-%m-%d %H:%M')} - "
+                        f"Assignment: {assigned}, Current State: {'running' if is_running else 'stopped'}",
+                        "INFO"
+                    )
+                    
+                    # Determine if action is needed
+                    action_needed = (assigned and not is_running) or (not assigned and is_running)
+                    desired_state = "on" if assigned else "off"
+                    
+                    if action_needed:
+                        # Double check device state before making any changes
+                        time.sleep(2)  # Wait before re-checking state
+                        verify_status = shelly_service.get_device_status()
+                        
+                        if "error" not in verify_status:
+                            current_state = (
+                                verify_status.get("data", {})
+                                .get("device_status", {})
+                                .get("switch:0", {})
+                                .get("output", False)
+                            )
+                            
+                            # Only proceed if the state still needs to be changed
+                            if (assigned and not current_state) or (not assigned and current_state):
+                                log_device_event(
+                                    device,
+                                    f"Confirmed state change needed. Setting to {desired_state.upper()}",
+                                    "INFO"
+                                )
+                                DeviceController.toggle_shelly_device(device, desired_state)
+                            else:
+                                log_device_event(
+                                    device,
+                                    f"State already correct on second check ({desired_state.upper()})",
+                                    "INFO"
+                                )
+                    else:
+                        log_device_event(
+                            device,
+                            f"No action needed. Current state matches desired state ({desired_state.upper()})",
+                            "INFO"
+                        )
+                    
+                    # Always wait between devices to respect rate limits
+                    time.sleep(2)
+                    
+                except Exception as e:
+                    log_device_event(
+                        device,
+                        f"Error processing device: {str(e)}",
                         "ERROR"
                     )
-                    continue
-                
-                is_running = (
-                    device_status.get("data", {})
-                    .get("device_status", {})
-                    .get("switch:0", {})
-                    .get("output", False)
-                )
-                
-                # Log the current state and assignment
-                log_device_event(
-                    device,
-                    f"Period {start_time.strftime('%Y-%m-%d %H:%M')} - "
-                    f"Assigned: {assigned}, Currently Running: {is_running}",
-                    "INFO"
-                )
-                
-                # Store the update info to process after all checks
-                assignment_updates.append({
-                    'device': device,
-                    'assigned': assigned,
-                    'is_running': is_running
-                })
-            
-            # Process all updates after checking all devices
-            for update in assignment_updates:
-                device = update['device']
-                assigned = update['assigned']
-                is_running = update['is_running']
-                
-                # Only toggle if the current state doesn't match the desired state
-                if assigned and not is_running:
-                    DeviceController.toggle_shelly_device(device, "on")
-                    time.sleep(2)  # Add delay between device operations
-                elif not assigned and is_running:
-                    DeviceController.toggle_shelly_device(device, "off")
-                    time.sleep(2)  # Add delay between device operations
         except Exception as e:
             log_device_event(None, f"Error controlling Shelly devices: {e}", "ERROR")
 
