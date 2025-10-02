@@ -35,7 +35,7 @@ class DeviceController:
             log_device_event(None, f"Error calling fetch-prices: {e}", "ERROR")
 
     @staticmethod
-    @with_db_retries(max_attempts=3, delay=1)
+    @with_db_retries(max_attempts=5, delay=2, backoff_factor=1.5)
     def control_shelly_devices() -> None:
         """Loops through all Shelly devices and toggles them based on pre-assigned cheapest 15-minute periods."""
         try:
