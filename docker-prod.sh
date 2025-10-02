@@ -2,7 +2,8 @@
 #!/bin/bash
 # Build and run Django production Docker container
 
-DATA_DIR="$(pwd)/data"
+# Create data directory in user's home directory
+DATA_DIR="$HOME/DjangoShellyElectiricityAutomation/data"
 if [ ! -d "$DATA_DIR" ]; then
   mkdir -p "$DATA_DIR"
 fi
@@ -22,6 +23,7 @@ if [ $(docker ps -a -q -f name="^/${CONTAINER_NAME}$") ]; then
   docker rm -f $CONTAINER_NAME
 fi
 docker build -t django-shelly-prod:$TAG .
+# Run the container
 docker run -d \
   -p 8000:8000 \
   --name $CONTAINER_NAME \

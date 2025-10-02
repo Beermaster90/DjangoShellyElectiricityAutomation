@@ -1,7 +1,8 @@
 #!/bin/bash
 # Build and run Django test Docker container
 
-DATA_TEST_DIR="$(pwd)/data-test"
+# Create data-test directory in user's home directory
+DATA_TEST_DIR="$HOME/DjangoShellyElectiricityAutomation/data-test"
 if [ ! -d "$DATA_TEST_DIR" ]; then
   mkdir -p "$DATA_TEST_DIR"
 fi
@@ -15,6 +16,7 @@ if [ $(docker ps -a -q -f name="^/${CONTAINER_NAME}$") ]; then
   docker rm -f $CONTAINER_NAME
 fi
 docker build -t django-shelly-test:$TAG .
+# Run the container
 docker run -d \
   -p 9000:8000 \
   --name $CONTAINER_NAME \

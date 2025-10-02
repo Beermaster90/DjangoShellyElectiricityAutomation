@@ -38,7 +38,7 @@ To build and run the production container:
 bash docker-prod.sh
 ```
 - The app will run on port 8000.
-- Persistent data is stored in the `data/` folder in your project root.
+- Persistent data is stored in `~/DjangoShellyElectiricityAutomation/data/` in your home directory.
 
 ### 2. Test
 To build and run the test container:
@@ -46,7 +46,7 @@ To build and run the test container:
 bash docker-test.sh
 ```
 - The app will run on port 9000.
-- Persistent data is stored in the `data-test/` folder in your project root.
+- Persistent data is stored in `~/DjangoShellyElectiricityAutomation/data-test/` in your home directory.
 
 ## Versioning
 
@@ -84,5 +84,31 @@ Replace the tag with the desired version (including seconds).
 
 ## Notes
 - The scripts automatically stop and remove any existing container with the same name before starting a new one.
-- Data is persistent between runs as long as you do not delete the `data/` or `data-test/` folders.
+- Data is persistent between runs as long as you do not delete the `~/DjangoShellyElectiricityAutomation/data/` or `~/DjangoShellyElectiricityAutomation/data-test/` folders.
 - For production, consider using a real database instead of SQLite for better reliability and scalability.
+
+## Application Settings
+
+On first start, App Settings are created in the database to control application behavior. You can view and edit these in the Django admin panel under "App Settings".
+
+### Global App Settings
+
+| Key                     | Description                                                                 |
+|-------------------------|-----------------------------------------------------------------------------|
+| timezone                | Default timezone for new users and system operations.                        |
+| clear_logs_onstartup    | If set to 1, clears all device logs on each app startup.                     |
+| Shelly_stop_rest_debug  | Enables debug logging for Shelly REST stop operations (1=enabled, 0=disabled)|
+| enstoe_apikey           | API key for Ensto device integration.                                        |
+
+### Default Device Settings
+
+| Key                     | Description                                                                 |
+|-------------------------|-----------------------------------------------------------------------------|
+| shelly_server           | Base URL for Shelly device API communication.                                |
+| automation_enabled      | Global flag to enable or disable device automation (1=enabled, 0=disabled).  |
+| default_run_hours       | Default number of hours devices should run daily.                            |
+| day_transfer_price      | Default transfer price during the day (c/kWh).                               |
+| night_transfer_price    | Default transfer price during the night (c/kWh).                             |
+| relay_channel           | Default relay channel for Shelly devices.                                    |
+
+**Note:** These settings are created automatically if missing, and can be changed at any time in the Django admin panel under "App Settings".
