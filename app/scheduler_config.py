@@ -10,9 +10,7 @@ def get_scheduler():
     scheduler = BackgroundScheduler(timezone=settings.TIME_ZONE)
     
     # Use our custom jobstore with optimized connection handling
-    scheduler.add_jobstore(DjangoJobStore(), 'default', {
-        'isolation_level': None,  # Disable transaction isolation for less locking
-    })
+    scheduler.add_jobstore(DjangoJobStore(), alias='default')
     
     # Configure the scheduler for better SQLite compatibility
     scheduler.configure(
