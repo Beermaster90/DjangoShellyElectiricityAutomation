@@ -171,15 +171,56 @@ class UserProfile(models.Model):
 # Signal to automatically create UserProfile and add user to 'commoneers' group as staff
 @receiver(post_save, sender=User)
 def create_or_update_user_profile_and_group(sender, instance, created, **kwargs):
-    """Create or update user profile and add to commoneers group as staff when user is saved."""
+    """Create or update user profile and add to commoneers group as staff when user is saved. Always assign required permissions to the group."""
+    from django.contrib.auth.models import Group, Permission
+    from django.contrib.contenttypes.models import ContentType
+
+    # Define required permissions (example: view, change, add, delete for ShellyDevice)
+    required_perms = [
+        # ShellyDevice permissions
+        "view_shellydevice",
+        "change_shellydevice",
+        "add_shellydevice",
+        "delete_shellydevice",
+        # DeviceAssignment permissions
+        "view_deviceassignment",
+        "change_deviceassignment",
+        "add_deviceassignment",
+        "delete_deviceassignment",
+        # ElectricityPrice permissions
+        "view_electricityprice",
+    ]
+
+    group, _ = Group.objects.get_or_create(name="commoneers")
+    # Collect permissions from all relevant models
+    from itertools import chain
+    model_cts = [
+        ContentType.objects.get(app_label="app", model="shellydevice"),
+        ContentType.objects.get(app_label="app", model="deviceassignment"),
+        ContentType.objects.get(app_label="app", model="electricityprice"),
+    ]
+    perms = Permission.objects.filter(content_type__in=model_cts, codename__in=required_perms)
+    group.permissions.set(perms)
+
     if created:
         UserProfile.objects.create(user=instance)
-        # Add to commoneers group and set as staff
-        from django.contrib.auth.models import Group
-        group, _ = Group.objects.get_or_create(name="commoneers")
         instance.groups.add(group)
         instance.is_staff = True
         instance.save()
+        # Create a dummy ShellyDevice for the new user
+        from app.models import ShellyDevice
+        ShellyDevice.objects.create(
+            familiar_name="Demo Device",
+            shelly_api_key="demo-api-key",
+            shelly_device_name="Demo Shelly",
+            user=instance,
+            status=1,
+            run_hours_per_day=1,
+            day_transfer_price=0.12345,
+            night_transfer_price=0.06789,
+            relay_channel=0,
+            shelly_server="https://yourapiaddress.shelly.cloud"
+        )
     else:
         # Update existing profile if it exists
         if hasattr(instance, "profile"):
