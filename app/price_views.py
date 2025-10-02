@@ -110,12 +110,12 @@ def call_fetch_prices(request):
         log_device_event(None, "New electricity prices fetched. Updating cheapest hours.", "INFO")
         set_cheapest_hours()
         
-        # Import here to avoid circular import
-        from app.tasks import DeviceController
-        
-        # Run device control check immediately after price update
-        log_device_event(None, "Running immediate device control check after price update.", "INFO")
-        DeviceController.control_shelly_devices()
+    # Import here to avoid circular import
+    from app.tasks import DeviceController
+    
+    # Always run device control at the hour mark, regardless of new prices
+    log_device_event(None, "Running scheduled device control check.", "INFO")
+    DeviceController.control_shelly_devices()
 
     # Convert price timestamps to UTC formatted strings
     prices_dict = {

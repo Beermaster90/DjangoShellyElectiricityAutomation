@@ -168,3 +168,11 @@ CSRF_COOKIE_HTTPONLY = True  # Prevent JS access to CSRF cookie
 LOGIN_URL = "/login/"
 LOGIN_REDIRECT_URL = "/shellyapp/"
 LOGOUT_REDIRECT_URL = "/login/"
+
+# APScheduler Settings
+APSCHEDULER_DATETIME_FORMAT = "N j, Y, f:s a"  # More readable format for dates
+DJANGO_APSCHEDULER_CLEANUP_INTERVAL = 60  # Clean up interval in seconds
+APSCHEDULER_RUN_NOW_TIMEOUT = 25  # Shorter timeout for immediate jobs
+APSCHEDULER_CONNECTION_OPTIONS = {
+    'isolation_level': None  # Disable transaction isolation for APScheduler
+}

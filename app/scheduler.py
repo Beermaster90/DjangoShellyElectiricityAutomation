@@ -1,8 +1,7 @@
-from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
-from django_apscheduler.jobstores import DjangoJobStore
 from django.db import connection
 from app.tasks import DeviceController
+from app.scheduler_config import get_scheduler
 import logging
 
 logger = logging.getLogger(__name__)
@@ -15,8 +14,8 @@ def start_scheduler():
             logger.warning("APScheduler tables not found! Skipping scheduler startup until migrations are applied.")
             return
 
-    scheduler = BackgroundScheduler()
-    scheduler.add_jobstore(DjangoJobStore(), "default")
+    # Get the optimized scheduler configuration
+    scheduler = get_scheduler()
 
     # Schedule the fetch electricity prices task (Every hour at HH:00 and HH:03)
     # HH:00 for regular updates, HH:03 as a backup in case the first attempt fails
@@ -28,10 +27,11 @@ def start_scheduler():
         replace_existing=True,
     )
 
-    # Schedule the Shelly device control task (Every 15 minutes)
+    # Schedule device control only for non-price-fetch times (15, 30, 45 minutes)
+    # Price fetching at 00 already includes device control
     scheduler.add_job(
         DeviceController.control_shelly_devices,
-        trigger=CronTrigger(minute="0,15,30,45"),  # Run at the start of each 15-minute period
+        trigger=CronTrigger(minute="15,30,45"),  # Skip minute 0 as price fetch handles it
         id="control_shelly",
         max_instances=1,
         replace_existing=True,
