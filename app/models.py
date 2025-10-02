@@ -167,12 +167,19 @@ class UserProfile(models.Model):
         verbose_name_plural = "User Profiles"
 
 
-# Signal to automatically create UserProfile when User is created
+
+# Signal to automatically create UserProfile and add user to 'commoneers' group as staff
 @receiver(post_save, sender=User)
-def create_or_update_user_profile(sender, instance, created, **kwargs):
-    """Create or update user profile when user is saved."""
+def create_or_update_user_profile_and_group(sender, instance, created, **kwargs):
+    """Create or update user profile and add to commoneers group as staff when user is saved."""
     if created:
         UserProfile.objects.create(user=instance)
+        # Add to commoneers group and set as staff
+        from django.contrib.auth.models import Group
+        group, _ = Group.objects.get_or_create(name="commoneers")
+        instance.groups.add(group)
+        instance.is_staff = True
+        instance.save()
     else:
         # Update existing profile if it exists
         if hasattr(instance, "profile"):
