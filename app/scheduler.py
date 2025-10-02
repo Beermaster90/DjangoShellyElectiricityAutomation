@@ -21,7 +21,7 @@ def start_scheduler():
     # HH:00 for regular updates, HH:03 as a backup in case the first attempt fails
     scheduler.add_job(
         DeviceController.fetch_electricity_prices,
-        trigger=CronTrigger(hour="*", minute="0,3"),
+        trigger=CronTrigger(hour="*", minute="0,5"),
         id="fetch_prices",
         max_instances=1,
         replace_existing=True,
