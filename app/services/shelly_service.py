@@ -40,28 +40,51 @@ class ShellyService:
             "auth_key": self.auth_key,  #  API Key from DB
         }
 
-        try:
-            # Wait if needed to comply with rate limits
-            shelly_rate_limiter.wait_if_needed(self.device_name)
-            
-            response = requests.get(url, params=params, timeout=10)  # Increased timeout
-            response.raise_for_status()
-            status_data = response.json()
+        max_retries = 3
+        retry_count = 0
+        
+        while retry_count < max_retries:
+            try:
+                # Wait if needed to comply with rate limits
+                shelly_rate_limiter.wait_if_needed(self.device_name)
+                
+                response = requests.get(url, params=params, timeout=10)  # Increased timeout
+                
+                if response.status_code == 429:  # Too Many Requests
+                    shelly_rate_limiter.record_failure(self.device_name)
+                    retry_count += 1
+                    if retry_count < max_retries:
+                        continue
+                    else:
+                        raise requests.RequestException("Rate limit exceeded after retries")
+                
+                response.raise_for_status()
+                status_data = response.json()
+                
+                # Record successful request
+                shelly_rate_limiter.record_success(self.device_name)
 
-            # Extract the correct Shelly Cloud ID from the status response
-            self.shelly_cloud_id = status_data.get("data", {}).get(
-                "id"
-            )  #  Fetch correct ID
+                # Extract the correct Shelly Cloud ID from the status response
+                self.shelly_cloud_id = status_data.get("data", {}).get(
+                    "id"
+                )  #  Fetch correct ID
 
-            # Add additional details for consistency
-            status_data["shelly_device_name"] = self.device_name
-            return status_data
-        except requests.RequestException as e:
-            # Sanitize error message to hide sensitive information
-            safe_error = SecurityUtils.get_safe_error_message(
-                e, "Shelly API request failed"
-            )
-            return {"error": safe_error}
+                # Add additional details for consistency
+                status_data["shelly_device_name"] = self.device_name
+                return status_data
+                
+            except requests.RequestException as e:
+                # Check if we should retry
+                if retry_count < max_retries - 1:
+                    shelly_rate_limiter.record_failure(self.device_name)
+                    retry_count += 1
+                    continue
+                    
+                # Sanitize error message to hide sensitive information
+                safe_error = SecurityUtils.get_safe_error_message(
+                    e, "Shelly API request failed"
+                )
+                return {"error": safe_error}
 
     def set_device_output(self, state, channel=None):
         """Sets the output state of a Shelly device to 'on' or 'off'."""
@@ -101,16 +124,40 @@ class ShellyService:
             ),  # Use device's default if not passed
         }
 
-        try:
-            # Wait if needed to comply with rate limits
-            shelly_rate_limiter.wait_if_needed(self.device_name)
-            
-            response = requests.post(url, params=params, data=data, timeout=10)  # Increased timeout
-            response.raise_for_status()
-            return response.json()  # Parse JSON response
-        except requests.RequestException as e:
-            # Sanitize error message to hide sensitive information
-            safe_error = SecurityUtils.get_safe_error_message(
-                e, "Shelly device control failed"
-            )
-            return {"error": safe_error}
+        max_retries = 3
+        retry_count = 0
+        
+        while retry_count < max_retries:
+            try:
+                # Wait if needed to comply with rate limits
+                shelly_rate_limiter.wait_if_needed(self.device_name)
+                
+                response = requests.post(url, params=params, data=data, timeout=10)
+                
+                if response.status_code == 429:  # Too Many Requests
+                    shelly_rate_limiter.record_failure(self.device_name)
+                    retry_count += 1
+                    if retry_count < max_retries:
+                        continue
+                    else:
+                        raise requests.RequestException("Rate limit exceeded after retries")
+                
+                response.raise_for_status()
+                
+                # Record successful request
+                shelly_rate_limiter.record_success(self.device_name)
+                
+                return response.json()  # Parse JSON response
+                
+            except requests.RequestException as e:
+                # Check if we should retry
+                if retry_count < max_retries - 1:
+                    shelly_rate_limiter.record_failure(self.device_name)
+                    retry_count += 1
+                    continue
+                    
+                # Sanitize error message to hide sensitive information
+                safe_error = SecurityUtils.get_safe_error_message(
+                    e, "Shelly device control failed"
+                )
+                return {"error": safe_error}
