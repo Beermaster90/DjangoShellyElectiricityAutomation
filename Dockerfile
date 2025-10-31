@@ -25,6 +25,10 @@ RUN pip install --no-cache-dir --upgrade pip && \
 # Final stage - runtime image
 FROM python:3.11-slim
 
+# Build arguments for version info
+ARG VERSION=1.0.0
+ARG BUILD_DATE=unknown
+
 # Install only runtime dependencies (minimal)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
@@ -32,6 +36,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
+ENV APP_VERSION=${VERSION}
+ENV APP_BUILD_DATE=${BUILD_DATE}
 
 # Create non-root user for security
 RUN groupadd -r django && useradd -r -g django django
@@ -45,6 +51,9 @@ COPY --from=builder /usr/local/bin /usr/local/bin
 
 # Copy project files (excluding files in .dockerignore)
 COPY --chown=django:django . .
+
+# Create build info file with version and build date
+RUN echo "${VERSION}-${BUILD_DATE}" > /app/BUILD_INFO
 
 # ==== Collect static files without needing the real DB ====
 # Use SQLite in-memory DB so collectstatic doesn't touch /data/db.sqlite3 during build

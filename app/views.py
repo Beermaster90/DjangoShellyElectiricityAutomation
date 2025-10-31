@@ -9,17 +9,61 @@ from .price_views import get_cheapest_hours
 from .device_assignment_manager import DeviceAssignmentManager
 from app.utils.time_utils import TimeUtils
 from typing import Dict, Any
+from django.contrib.auth.models import User
+from django.contrib.auth.models import User
 from django.contrib.admin.views.decorators import staff_member_required
 from django.urls import reverse
 from app.forms import BootstrapAuthenticationForm
 import json
 import pytz
+import os
+from django.conf import settings
+
+
+def get_version_info():
+    """Read version info from BUILD_INFO file (created during Docker build) or fall back to VERSION file."""
+    # First, try to read from BUILD_INFO file (created during Docker build)
+    try:
+        build_info_file = os.path.join(settings.BASE_DIR, 'BUILD_INFO')
+        with open(build_info_file, 'r') as f:
+            return f.read().strip()
+    except:
+        pass
+    
+    # Fall back to reading VERSION file and generating timestamp
+    version = "1.0.0"
+    try:
+        version_file = os.path.join(settings.BASE_DIR, 'VERSION')
+        with open(version_file, 'r') as f:
+            version = f.read().strip()
+    except:
+        pass
+    
+    # Get build timestamp from VERSION file modification time
+    build_timestamp = ""
+    try:
+        version_file = os.path.join(settings.BASE_DIR, 'VERSION')
+        mtime = os.path.getmtime(version_file)
+        build_date = datetime.fromtimestamp(mtime)
+        build_timestamp = build_date.strftime("%Y%m%d-%H%M%S")
+    except:
+        build_timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    
+    return f"{version}-{build_timestamp}"
 
 
 class CustomLoginView(LoginView):
     """Custom login view that handles 'remember me' functionality"""
     form_class = BootstrapAuthenticationForm
     template_name = 'app/login.html'
+    
+    def get_context_data(self, **kwargs):
+        """Add version and year to context"""
+        context = super().get_context_data(**kwargs)
+        context['year'] = datetime.now().year
+        context['version'] = get_version_info()
+        context['title'] = 'Log in'
+        return context
     
     def form_valid(self, form):
         """Handle form validation and set session expiry based on remember me checkbox"""
@@ -52,11 +96,32 @@ def get_common_context(request: HttpRequest) -> Dict[str, Any]:
         .values("id", "start_time", "end_time", "price_kwh")
     )
 
+    users = None
+    selected_user = request.user
+
     if request.user.is_superuser:
-        devices = ShellyDevice.objects.all()
+        # Include all users in the dropdown
+        users = User.objects.order_by("username")
+        selected_user_id = request.GET.get("user_id")
+
+        if selected_user_id:
+            selected_user = User.objects.filter(id=selected_user_id).first()
+        
+        # If no user selected or invalid user, default to first user with assigned devices
+        if not selected_user:
+            # Try to find first user with device assignments
+            for user in users:
+                if DeviceAssignment.objects.filter(user=user).exists():
+                    selected_user = user
+                    break
+            # If no user has assignments, use first user or request.user
+            if not selected_user:
+                selected_user = users.first() or request.user
+
+        devices = ShellyDevice.objects.filter(user=selected_user)
         assignments = DeviceAssignment.objects.select_related(
             "device", "electricity_price"
-        ).all()
+        ).filter(user=selected_user)
     else:
         devices = ShellyDevice.objects.filter(user=request.user)
         assignments = DeviceAssignment.objects.filter(user=request.user)
@@ -102,6 +167,8 @@ def get_common_context(request: HttpRequest) -> Dict[str, Any]:
     return {
         "prices": prices,
         "devices": devices,
+        "users": users,
+        "selected_user": selected_user,
         "selected_device": selected_device,
         "day_transfer_price": day_transfer_price,
         "night_transfer_price": night_transfer_price,
@@ -111,6 +178,7 @@ def get_common_context(request: HttpRequest) -> Dict[str, Any]:
         "user_timezone": user_timezone_name,
         "title": "Landing Page",
         "year": now_utc.year,
+        "version": get_version_info(),
     }
 
 
@@ -149,6 +217,7 @@ def about(request: HttpRequest):
             "year": datetime.now().year,
             "logs": logs,
             "user_timezone": user_timezone_name,
+            "version": get_version_info(),
         },
     )
 
@@ -162,6 +231,7 @@ def contact(request: HttpRequest):
             "title": "Contact",
             "message": "Your contact page.",
             "year": datetime.now().year,
+            "version": get_version_info(),
         },
     )
 
@@ -281,6 +351,8 @@ def admin_test_page(request: HttpRequest):
             "prices": prices,
             "result": result,
             "assigned_hours": assigned_hours,
+            "year": datetime.now().year,
+            "version": get_version_info(),
         },
     )
 
@@ -308,9 +380,14 @@ def toggle_device_assignment(request):
         if not device_id or not price_id:
             return JsonResponse({"success": False, "error": "Missing device_id or price_id"})
         
-        # Get the device (ensure user owns it)
+        # Get the device - admins can access any device, regular users only their own
         try:
-            device = ShellyDevice.objects.get(device_id=device_id, user=request.user)
+            if request.user.is_staff or request.user.is_superuser:
+                # Admins can access any device
+                device = ShellyDevice.objects.get(device_id=device_id)
+            else:
+                # Regular users can only access their own devices
+                device = ShellyDevice.objects.get(device_id=device_id, user=request.user)
         except ShellyDevice.DoesNotExist:
             return JsonResponse({"success": False, "error": "Device not found or access denied"})
         
@@ -324,9 +401,13 @@ def toggle_device_assignment(request):
         except ElectricityPrice.DoesNotExist:
             return JsonResponse({"success": False, "error": "Electricity price not found"})
         
-        # Check if assignment already exists
+        # Determine which user the assignment belongs to
+        # Admins manage assignments for the device owner, regular users for themselves
+        assignment_user = device.user if (request.user.is_staff or request.user.is_superuser) else request.user
+        
+        # Check if assignment already exists for the correct user
         assignment = DeviceAssignment.objects.filter(
-            user=request.user,
+            user=assignment_user,
             device=device,
             electricity_price=electricity_price
         ).first()
@@ -337,20 +418,26 @@ def toggle_device_assignment(request):
             action = "unassigned"
             assigned = False
         else:
-            # Assign - create new assignment
+            # Assign - create new assignment for the correct user
             DeviceAssignment.objects.create(
-                user=request.user,
+                user=assignment_user,
                 device=device,
                 electricity_price=electricity_price
             )
             action = "assigned"
             assigned = True
         
+        # Create appropriate message based on who is making the change
+        if (request.user.is_staff or request.user.is_superuser) and assignment_user != request.user:
+            message = f"Device {device.familiar_name} {action} for {assignment_user.username} at {TimeUtils.format_datetime_with_tz(electricity_price.start_time, request.user, '%H:%M')}"
+        else:
+            message = f"Device {device.familiar_name} {action} for {TimeUtils.format_datetime_with_tz(electricity_price.start_time, request.user, '%H:%M')}"
+            
         return JsonResponse({
             "success": True,
             "action": action,
             "assigned": assigned,
-            "message": f"Device {device.familiar_name} {action} for {TimeUtils.format_datetime_with_tz(electricity_price.start_time, request.user, '%H:%M')}"
+            "message": message
         })
         
     except json.JSONDecodeError:

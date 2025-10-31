@@ -46,11 +46,13 @@
         </div>
     </div>
 
+    {% include "app/_user_selector.html" %}
+
     <div class="container body-content">
         {% block content %}{% endblock %}
         <hr />
         <footer>
-            <p>&copy; {{ year }} - Shelly Smart Energy</p>
+            <p>&copy; {{ year }} - Shelly Smart Energy | Version: {{ version }}</p>
         </footer>
     </div>
 

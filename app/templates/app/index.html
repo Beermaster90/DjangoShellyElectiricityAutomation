@@ -162,6 +162,7 @@
         </style>
 
         <!-- Device Selection Dropdown -->
+        <label for="deviceSelect">Select Device:</label>
         <select id="deviceSelect" onchange="updateDeviceData()">
             {% for device in devices %}
             <option value="{{ device.device_id }}"
@@ -170,7 +171,11 @@
                     data-hours-needed="{{ device.run_hours_per_day }}"
                     data-cheapest-hours="{{ device.cheapest_hours|join:',' }}"
                     data-device-status="{{ device.status }}">
-                {{ device.familiar_name }}
+                {% if user.is_superuser and device.user != user %}
+                    {{ device.familiar_name }} ({{ device.user.username }})
+                {% else %}
+                    {{ device.familiar_name }}
+                {% endif %}
             </option>
             {% endfor %}
         </select>

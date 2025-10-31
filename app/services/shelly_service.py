@@ -45,13 +45,13 @@ class ShellyService:
         
         while retry_count < max_retries:
             try:
-                # Wait if needed to comply with rate limits
-                shelly_rate_limiter.wait_if_needed(self.device_name)
+                # Wait if needed to comply with rate limits (per server+token combination)
+                shelly_rate_limiter.wait_if_needed(self.base_cloud_url, self.auth_key)
                 
-                response = requests.get(url, params=params, timeout=10)  # Increased timeout
+                response = requests.get(url, params=params, timeout=15)  # Further increased timeout
                 
                 if response.status_code == 429:  # Too Many Requests
-                    shelly_rate_limiter.record_failure(self.device_name)
+                    shelly_rate_limiter.record_failure(self.base_cloud_url, self.auth_key)
                     retry_count += 1
                     if retry_count < max_retries:
                         continue
@@ -62,7 +62,7 @@ class ShellyService:
                 status_data = response.json()
                 
                 # Record successful request
-                shelly_rate_limiter.record_success(self.device_name)
+                shelly_rate_limiter.record_success(self.base_cloud_url, self.auth_key)
 
                 # Extract the correct Shelly Cloud ID from the status response
                 self.shelly_cloud_id = status_data.get("data", {}).get(
@@ -76,7 +76,7 @@ class ShellyService:
             except requests.RequestException as e:
                 # Check if we should retry
                 if retry_count < max_retries - 1:
-                    shelly_rate_limiter.record_failure(self.device_name)
+                    shelly_rate_limiter.record_failure(self.base_cloud_url, self.auth_key)
                     retry_count += 1
                     continue
                     
@@ -129,13 +129,13 @@ class ShellyService:
         
         while retry_count < max_retries:
             try:
-                # Wait if needed to comply with rate limits
-                shelly_rate_limiter.wait_if_needed(self.device_name)
+                # Wait if needed to comply with rate limits (per server+token combination)
+                shelly_rate_limiter.wait_if_needed(self.base_cloud_url, self.auth_key)
                 
-                response = requests.post(url, params=params, data=data, timeout=10)
+                response = requests.post(url, params=params, data=data, timeout=15)
                 
                 if response.status_code == 429:  # Too Many Requests
-                    shelly_rate_limiter.record_failure(self.device_name)
+                    shelly_rate_limiter.record_failure(self.base_cloud_url, self.auth_key)
                     retry_count += 1
                     if retry_count < max_retries:
                         continue
@@ -145,14 +145,14 @@ class ShellyService:
                 response.raise_for_status()
                 
                 # Record successful request
-                shelly_rate_limiter.record_success(self.device_name)
+                shelly_rate_limiter.record_success(self.base_cloud_url, self.auth_key)
                 
                 return response.json()  # Parse JSON response
                 
             except requests.RequestException as e:
                 # Check if we should retry
                 if retry_count < max_retries - 1:
-                    shelly_rate_limiter.record_failure(self.device_name)
+                    shelly_rate_limiter.record_failure(self.base_cloud_url, self.auth_key)
                     retry_count += 1
                     continue
                     

@@ -1,0 +1,67 @@
+{% if user.is_superuser and users %}
+<div class="container" style="margin-top: 70px; margin-bottom: 15px;">
+    <div class="row">
+        <div class="col-md-8 col-md-offset-2">
+            <div class="panel panel-info">
+                <div class="panel-heading">
+                    <h3 class="panel-title">
+                        <i class="glyphicon glyphicon-user"></i> Admin: Viewing as 
+                        <strong>{{ selected_user.username }}</strong>
+                        {% if selected_user.first_name %}({{ selected_user.first_name }} {{ selected_user.last_name }}){% endif %}
+                    </h3>
+                </div>
+                <div class="panel-body" style="padding: 10px 15px;">
+                    <form method="get" id="userSelectForm" class="form-inline">
+                        <div class="form-group" style="margin-right: 10px;">
+                            <label for="userSelect" style="margin-right: 10px;">Switch User:</label>
+                            <select class="form-control" id="userSelect" name="user_id" onchange="updateUserSelection()">
+                                {% for u in users %}
+                                    <option value="{{ u.id }}" {% if u.id == selected_user.id %}selected{% endif %}>
+                                        {{ u.username }} {% if u.first_name %}({{ u.first_name }} {{ u.last_name }}){% endif %}
+                                    </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<script>
+function updateUserSelection() {
+    const userId = document.getElementById('userSelect').value;
+    
+    // Store selected user in localStorage for persistence across pages
+    localStorage.setItem('selectedUserId', userId);
+    
+    // Update current page
+    const form = document.getElementById('userSelectForm');
+    form.submit();
+}
+
+// On page load, check if there's a stored user selection
+document.addEventListener('DOMContentLoaded', function() {
+    const storedUserId = localStorage.getItem('selectedUserId');
+    const urlParams = new URLSearchParams(window.location.search);
+    const currentUserId = urlParams.get('user_id');
+    
+    // If there's a stored user but no URL parameter, redirect with the stored user
+    if (storedUserId && !currentUserId) {
+        window.location.search = '?user_id=' + storedUserId;
+    }
+    
+    // Update localStorage with current selection
+    if (currentUserId) {
+        localStorage.setItem('selectedUserId', currentUserId);
+        
+        // Update the select element to match
+        const select = document.getElementById('userSelect');
+        if (select) {
+            select.value = currentUserId;
+        }
+    }
+});
+</script>

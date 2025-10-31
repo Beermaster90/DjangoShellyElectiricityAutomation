@@ -3,6 +3,7 @@ from django.http import JsonResponse
 from .services.shelly_service import ShellyService
 from .models import ShellyDevice, DeviceLog
 from .logger import log_device_event
+from .utils.rate_limiter import shelly_rate_limiter
 import time
 
 
@@ -14,8 +15,12 @@ def fetch_device_status(request):
         return JsonResponse({"error": "Device ID not provided"}, status=400)
 
     try:
-        time.sleep(1.2)  # Timeout to make sure api limits wont be hit
-        # Initialize Shelly Service
+        # First, wait if needed, to queue requests from the frontend
+        device = ShellyDevice.objects.filter(device_id=device_id).first()
+        if device:
+            shelly_rate_limiter.wait_if_needed(device.shelly_server, device.shelly_api_key)
+
+        # Initialize Shelly Service - rate limiting is handled in the service
         shelly_service = ShellyService(device_id)
         raw_status = shelly_service.get_device_status()
 
@@ -76,7 +81,7 @@ def toggle_device_output(request):
     """
     device_id = request.GET.get("device_id")
     state = request.GET.get("state")  # 'on' or 'off'
-    time.sleep(1.2)  # Timeout to make sure api limits wont be hit
+    # Rate limiting is now handled in ShellyService
 
     if not device_id:
         return JsonResponse({"error": "Device ID not provided"}, status=400)

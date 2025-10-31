@@ -73,91 +73,164 @@ class DeviceController:
                 log_device_event(None, "No devices with automation enabled found", "INFO")
                 return
             
-            # Process devices one at a time with proper rate limiting
+            # Group devices by server+token combination for optimal parallel processing
+            from collections import defaultdict
+            import hashlib
+            
+            device_groups = defaultdict(list)
             for device in devices:
-                try:
-                    # Check if this 15-minute period is assigned
-                    assigned = DeviceAssignment.objects.filter(
-                        device=device,
-                        electricity_price_id__in=active_price_ids
-                    ).exists()
-                    
-                    # Get initial device state
-                    shelly_service = ShellyService(device.device_id)
-                    device_status = shelly_service.get_device_status()
-                    
-                    if "error" in device_status:
+                # Create a key for server+token combination
+                key_hash = hashlib.md5(device.shelly_api_key.encode()).hexdigest()[:8]
+                group_key = f"{device.shelly_server}:{key_hash}"
+                device_groups[group_key].append(device)
+            
+            log_device_event(
+                None,
+                f"Processing {len(devices)} devices in {len(device_groups)} parallel groups by server+token combination",
+                "INFO"
+            )
+            
+            # Process each group with internal staggering, but groups can run in parallel
+            from concurrent.futures import ThreadPoolExecutor, as_completed
+            
+            def process_device_group(group_info):
+                group_key, device_list = group_info
+                log_device_event(
+                    None,
+                    f"Processing group {group_key} with {len(device_list)} devices",
+                    "INFO"
+                )
+                
+                for index, device in enumerate(device_list):
+                    try:
+                        # Small stagger within the group (only 1 second between devices in same group)
+                        if index > 0:
+                            time.sleep(1)
+                        
+                        DeviceController._process_single_device(device, active_price_ids, start_time)
+                        
+                    except Exception as e:
                         log_device_event(
                             device,
-                            f"Error fetching initial status: {device_status['error']}",
+                            f"Error processing device in group: {str(e)}",
                             "ERROR"
                         )
-                        continue
-                    
-                    is_running = (
-                        device_status.get("data", {})
-                        .get("device_status", {})
-                        .get("switch:0", {})
-                        .get("output", False)
-                    )
-                    
-                    # Log detailed state information
-                    log_device_event(
-                        device,
-                        f"Period {start_time.strftime('%Y-%m-%d %H:%M')} - "
-                        f"Assignment: {assigned}, Current State: {'running' if is_running else 'stopped'}",
-                        "INFO"
-                    )
-                    
-                    # Determine if action is needed
-                    action_needed = (assigned and not is_running) or (not assigned and is_running)
-                    desired_state = "on" if assigned else "off"
-                    
-                    if action_needed:
-                        # Double check device state before making any changes
-                        time.sleep(2)  # Wait before re-checking state
-                        verify_status = shelly_service.get_device_status()
-                        
-                        if "error" not in verify_status:
-                            current_state = (
-                                verify_status.get("data", {})
-                                .get("device_status", {})
-                                .get("switch:0", {})
-                                .get("output", False)
-                            )
-                            
-                            # Only proceed if the state still needs to be changed
-                            if (assigned and not current_state) or (not assigned and current_state):
-                                log_device_event(
-                                    device,
-                                    f"Confirmed state change needed. Setting to {desired_state.upper()}",
-                                    "INFO"
-                                )
-                                DeviceController.toggle_shelly_device(device, desired_state)
-                            else:
-                                log_device_event(
-                                    device,
-                                    f"State already correct on second check ({desired_state.upper()})",
-                                    "INFO"
-                                )
-                    else:
+            
+            # Execute groups in parallel (max 5 concurrent groups to be conservative)
+            with ThreadPoolExecutor(max_workers=min(5, len(device_groups))) as executor:
+                futures = [executor.submit(process_device_group, group_info) for group_info in device_groups.items()]
+                
+                # Wait for all groups to complete
+                for future in as_completed(futures):
+                    try:
+                        future.result()
+                    except Exception as e:
                         log_device_event(
-                            device,
-                            f"No action needed. Current state matches desired state ({desired_state.upper()})",
-                            "INFO"
+                            None,
+                            f"Error in device group processing: {str(e)}",
+                            "ERROR"
                         )
-                    
-                    # Always wait between devices to respect rate limits
-                    time.sleep(2)
-                    
-                except Exception as e:
-                    log_device_event(
-                        device,
-                        f"Error processing device: {str(e)}",
-                        "ERROR"
-                    )
+                        
         except Exception as e:
             log_device_event(None, f"Error controlling Shelly devices: {e}", "ERROR")
+
+    @staticmethod
+    def _process_single_device(device: ShellyDevice, active_price_ids: list, start_time) -> None:
+        """Process a single device - extracted for use in parallel processing."""
+        try:
+            # Check if this 15-minute period is assigned
+            assigned = DeviceAssignment.objects.filter(
+                device=device,
+                electricity_price_id__in=active_price_ids
+            ).exists()
+            
+            # Get initial device state (ONLY ONE STATUS CHECK)
+            shelly_service = ShellyService(device.device_id)
+            device_status = shelly_service.get_device_status()
+            
+            if "error" in device_status:
+                log_device_event(
+                    device,
+                    f"Error fetching initial status: {device_status['error']}",
+                    "ERROR"
+                )
+                return
+            
+            is_running = (
+                device_status.get("data", {})
+                .get("device_status", {})
+                .get("switch:0", {})
+                .get("output", False)
+            )
+            
+            # Log detailed state information
+            log_device_event(
+                device,
+                f"Period {start_time.strftime('%Y-%m-%d %H:%M')} - "
+                f"Assignment: {assigned}, Current State: {'running' if is_running else 'stopped'}",
+                "INFO"
+            )
+            
+            # Determine if action is needed
+            action_needed = (assigned and not is_running) or (not assigned and is_running)
+            desired_state = "on" if assigned else "off"
+            
+            if action_needed:
+                log_device_event(
+                    device,
+                    f"State change needed. Setting to {desired_state.upper()}",
+                    "INFO"
+                )
+                # Call toggle with the device state we just fetched (pass it to avoid re-fetching)
+                DeviceController.toggle_shelly_device_with_state(device, desired_state, is_running)
+            else:
+                log_device_event(
+                    device,
+                    f"No action needed. Current state matches desired state ({desired_state.upper()})",
+                    "INFO"
+                )
+                
+        except Exception as e:
+            log_device_event(
+                device,
+                f"Error processing device: {str(e)}",
+                "ERROR"
+            )
+
+    @staticmethod
+    def toggle_shelly_device_with_state(device: ShellyDevice, action: str, current_is_running: bool) -> None:
+        """Helper function to toggle a Shelly device ON or OFF when current state is already known."""
+        # Only make the toggle call if the device is not already in the desired state
+        if (action == "off" and current_is_running) or (action == "on" and not current_is_running):
+            log_device_event(
+                device,
+                f"Device state needs change: currently {'ON' if current_is_running else 'OFF'}, setting to {action.upper()}",
+                "INFO"
+            )
+            
+            shelly_service = ShellyService(device.device_id)
+            result = shelly_service.set_device_output(state=action)
+            
+            if "error" in result:
+                log_device_event(
+                    device,
+                    f"Failed to turn {action.upper()} device: {result['error']}",
+                    "ERROR",
+                )
+            elif result.get("status") == "blocked":
+                log_device_event(
+                    device,
+                    f"Device toggle BLOCKED by SHELLY_STOP_REST_DEBUG: {result.get('message', 'No message')}",
+                    "INFO",
+                )
+            else:
+                log_device_event(device, f"Device turned {action.upper()}", "INFO")
+        else:
+            log_device_event(
+                device,
+                f"Device already in desired state ({action.upper()}), no action needed",
+                "INFO"
+            )
 
     @staticmethod
     def toggle_shelly_device(device: ShellyDevice, action: str) -> None:
@@ -165,7 +238,7 @@ class DeviceController:
         # Get the last logged state to minimize API calls
         last_log = DeviceLog.objects.filter(device=device).order_by('-created_at').first()
         last_action = None
-        if last_log and (datetime.now(pytz.UTC) - last_log.created_at).total_seconds() < 60:  # Only trust state if recent
+        if last_log and (datetime.now(pytz.UTC) - last_log.created_at).total_seconds() < 120:  # Trust state for 2 minutes
             message = last_log.message.lower()
             if "turned on" in message:
                 last_action = "on"
@@ -176,17 +249,20 @@ class DeviceController:
         if last_action == action:
             log_device_event(
                 device,
-                f"Skipping {action} command - device already in desired state",
+                f"Skipping {action} command - device already in desired state (cached)",
                 "INFO"
             )
             return
 
+        # Only proceed with API calls if we really need to change state
         shelly_service = ShellyService(device.device_id)
+        
+        # First get current status to verify we need to make a change
         device_status = shelly_service.get_device_status()
         
         if "error" in device_status:
             log_device_event(
-                device, f"Error fetching status: {device_status['error']}", "ERROR"
+                device, f"Error fetching status for toggle: {device_status['error']}", "ERROR"
             )
             return
             
@@ -197,33 +273,5 @@ class DeviceController:
             .get("output", False)
         )
         
-        if (action == "off" and is_running) or (action == "on" and not is_running):
-            request_factory = RequestFactory()
-            request = request_factory.get(
-                "/toggle-device-output/",
-                {"device_id": device.device_id, "state": action},
-            )
-            response = toggle_device_output(request)
-            
-            if isinstance(response, JsonResponse) and response.status_code == 200:
-                # Check if the response was blocked by debug setting
-                try:
-                    response_data = response.json() if hasattr(response, "json") else {}
-                except:
-                    response_data = {}
-
-                if response_data.get("status") == "blocked":
-                    log_device_event(
-                        device,
-                        f"Device toggle BLOCKED by SHELLY_STOP_REST_DEBUG: {response_data.get('message', 'No message')}",
-                        "INFO",
-                    )
-                else:
-                    log_device_event(device, f"Device turned {action.upper()}", "INFO")
-                time.sleep(2)
-            else:
-                log_device_event(
-                    device,
-                    f"Failed to turn {action.upper()} device. Response: {response.content}",
-                    "ERROR",
-                )
+        # Use the new method to avoid duplicate code
+        DeviceController.toggle_shelly_device_with_state(device, action, is_running)

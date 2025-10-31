@@ -22,7 +22,8 @@ if [ $(docker ps -a -q -f name="^/${CONTAINER_NAME}$") ]; then
   echo "Force removing existing container: $CONTAINER_NAME"
   docker rm -f $CONTAINER_NAME
 fi
-docker build -t django-shelly-prod:$TAG .
+echo "Building with VERSION=$VERSION and BUILD_DATE=$BUILD_DATE"
+docker build --build-arg VERSION=$VERSION --build-arg BUILD_DATE=$BUILD_DATE -t django-shelly-prod:$TAG .
 # Run the container
 docker run -d \
   -p 8000:8000 \

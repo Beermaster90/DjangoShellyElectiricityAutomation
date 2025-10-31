@@ -28,6 +28,30 @@
                                    min="0" 
                                    max="50">
                         </div>
+                        <div class="col-sm-6">
+                            <p class="form-control-static text-muted">
+                                <small>Total price including VAT and transfer costs</small>
+                            </p>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="yearlyConsumption" class="col-sm-3 control-label">Total Yearly Consumption (kWh):</label>
+                        <div class="col-sm-3">
+                            <input type="number" 
+                                   class="form-control" 
+                                   id="yearlyConsumption" 
+                                   name="yearly_consumption" 
+                                   value="{{ yearly_consumption }}" 
+                                   min="1" 
+                                   max="100000"
+                                   oninput="calculateWatts()">
+                        </div>
+                        <div class="col-sm-6">
+                            <p class="form-control-static text-muted">
+                                <small>Enter your total yearly electricity consumption</small>
+                            </p>
+                        </div>
                     </div>
                     
                     <div class="form-group">
@@ -39,7 +63,33 @@
                                    name="watts" 
                                    value="{{ watts }}" 
                                    min="1" 
-                                   max="10000">
+                                   max="10000"
+                                   readonly
+                                   style="background-color: #f5f5f5; cursor: not-allowed;">
+                        </div>
+                        <div class="col-sm-6">
+                            <p class="form-control-static text-muted">
+                                <small>Calculated: (Yearly kWh × 1000) ÷ 8760 hours</small>
+                            </p>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="shellyControlledPercentage" class="col-sm-3 control-label">Shelly Controlled Usage (%):</label>
+                        <div class="col-sm-3">
+                            <input type="number" 
+                                   class="form-control" 
+                                   id="shellyControlledPercentage" 
+                                   name="shelly_controlled_percentage" 
+                                   value="{{ shelly_controlled_percentage }}" 
+                                   min="1" 
+                                   max="100"
+                                   step="1">
+                        </div>
+                        <div class="col-sm-6">
+                            <p class="form-control-static text-muted">
+                                <small>What % of your total consumption does Shelly control? (Water heater + floor heating)</small>
+                            </p>
                         </div>
                     </div>
                     
@@ -77,6 +127,20 @@
     let chart = null;
     let graphData = {{ graph_data|safe }};
 
+    function calculateWatts() {
+        const yearlyConsumption = parseFloat(document.getElementById('yearlyConsumption').value) || 0;
+        // Convert yearly kWh to average watts: (kWh * 1000) / 8760 hours
+        const watts = Math.round((yearlyConsumption * 1000) / 8760);
+        document.getElementById('watts').value = watts;
+    }
+
+    function updateUserSelection() {
+        const userId = document.getElementById('userSelect').value;
+        const currentUrl = new URL(window.location.href);
+        currentUrl.searchParams.set('user_id', userId);
+        window.location.href = currentUrl.toString();
+    }
+
     function updateChart(data) {
         console.log('updateChart called with:', data);
         
@@ -112,7 +176,9 @@
                         tension: 0.1,
                         pointBackgroundColor: 'rgb(40, 167, 69)',
                         pointBorderColor: 'rgb(40, 167, 69)',
-                        pointRadius: 2
+                        pointRadius: 1.5,
+                        pointHoverRadius: 4,
+                        borderWidth: 2
                     },
                     {
                         label: 'Fixed Pricing (€' + data.total_fixed.toFixed(2) + ' total) - ' + data.fixed_price + 'c/kWh',
@@ -123,7 +189,9 @@
                         tension: 0.1,
                         pointBackgroundColor: 'rgb(23, 162, 184)',
                         pointBorderColor: 'rgb(23, 162, 184)',
-                        pointRadius: 2
+                        pointRadius: 1.5,
+                        pointHoverRadius: 4,
+                        borderWidth: 2
                     }
                 ]
             },
@@ -146,19 +214,47 @@
                     },
                     title: {
                         display: true,
-                        text: 'Total Electricity Costs (VAT + Transfer Included) - Savings: €' + Math.abs(data.savings).toFixed(2) + ' (' + Math.abs(data.savings_percentage).toFixed(1) + '%)',
+                        text: [
+                            'Total Electricity Costs (VAT + Transfer Included) - Savings: €' + Math.abs(data.savings).toFixed(2) + ' (' + Math.abs(data.savings_percentage).toFixed(1) + '%)',
+                            'Avg Dynamic Price: ' + data.avg_dynamic_price.toFixed(2) + ' c/kWh (incl. VAT & Transfer)'
+                        ],
                         font: {
-                            size: 16
+                            size: 14
+                        },
+                        padding: {
+                            bottom: 20
                         }
                     },
                     tooltip: {
                         callbacks: {
                             afterBody: function(context) {
-                                if (context.length > 1) {
-                                    const dynamic = context[0].parsed.y;
-                                    const fixed = context[1].parsed.y;
-                                    const diff = fixed - dynamic;
-                                    return ['', 'Difference at this point: €' + diff.toFixed(2)];
+                                if (context.length > 0) {
+                                    const dataIndex = context[0].dataIndex;
+                                    const priceInfo = graphData.period_prices[dataIndex];
+                                    
+                                    if (!priceInfo) return [];
+                                    
+                                    const lines = [''];
+                                    
+                                    if (priceInfo.has_usage) {
+                                        lines.push('Base Price: ' + priceInfo.base_price.toFixed(2) + ' c/kWh');
+                                        lines.push('Transfer Cost: ' + priceInfo.transfer.toFixed(2) + ' c/kWh');
+                                        lines.push('Dynamic Price (incl. VAT): ' + priceInfo.dynamic.toFixed(2) + ' c/kWh');
+                                        lines.push('Fixed Price (incl. VAT): ' + priceInfo.fixed.toFixed(2) + ' c/kWh');
+                                        
+                                        if (context.length > 1) {
+                                            const dynamic = context[0].parsed.y;
+                                            const fixed = context[1].parsed.y;
+                                            const diff = fixed - dynamic;
+                                            lines.push('');
+                                            lines.push('Cumulative Difference: €' + diff.toFixed(2));
+                                        }
+                                    } else {
+                                        lines.push('No device usage during this period');
+                                        lines.push('Base Price: ' + priceInfo.base_price.toFixed(2) + ' c/kWh');
+                                    }
+                                    
+                                    return lines;
                                 }
                                 return [];
                             }
@@ -170,10 +266,14 @@
                         display: true,
                         title: {
                             display: true,
-                            text: 'Time Period'
+                            text: 'Time Period (15-minute intervals)'
                         },
                         ticks: {
-                            maxTicksLimit: 20
+                            maxTicksLimit: 96,  // Show up to 96 ticks (24 hours × 4 periods)
+                            maxRotation: 90,
+                            minRotation: 45,
+                            autoSkip: true,
+                            autoSkipPadding: 10
                         }
                     },
                     y: {
@@ -195,6 +295,9 @@
 
     // Initialize chart on page load
     document.addEventListener('DOMContentLoaded', function() {
+        // Calculate initial watts value from yearly consumption
+        calculateWatts();
+        
         if (graphData && graphData.labels && graphData.labels.length > 0) {
             updateChart(graphData);
         } else {
@@ -224,6 +327,12 @@
         // Make AJAX request
         const urlParams = new URLSearchParams(formData);
         urlParams.append('_t', Date.now()); // Add cache buster
+        
+        // Add user_id if present (for admin viewing other users)
+        const userSelect = document.getElementById('userSelect');
+        if (userSelect) {
+            urlParams.append('user_id', userSelect.value);
+        }
         
         fetch('/shellyapp/get-graph-data/?' + urlParams.toString())
             .then(response => {

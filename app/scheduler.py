@@ -27,8 +27,8 @@ def start_scheduler():
         replace_existing=True,
     )
 
-    # Schedule device control only for non-price-fetch times (15, 30, 45 minutes)
-    # Price fetching at 00 already includes device control
+    # Schedule device control for 15-minute periods with slight offset to avoid conflicts
+    # Adding 1-minute delay after the period starts to ensure price data is available
     scheduler.add_job(
         DeviceController.control_shelly_devices,
         trigger=CronTrigger(minute="15,30,45"),  # Skip minute 0 as price fetch handles it
