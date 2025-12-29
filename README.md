@@ -107,6 +107,17 @@ Copy the `Server` (base URL) and `API key/Auth key` values into the fields above
 - Data is persistent between runs as long as you do not delete the `~/DjangoShellyElectiricityAutomation/data/` or `~/DjangoShellyElectiricityAutomation/data-test/` folders.
 - For production, consider using a real database instead of SQLite for better reliability and scalability.
 
+## License
+GNU AGPL v3
+
+### Summary (What You Can Do)
+- Use, run, and modify the software.
+- Share the software and your modifications.
+- Use it for commercial or private purposes.
+- You must provide source code and license notices when distributing.
+- If you run a modified version as a network service, you must provide the source to users of that service.
+- Derivative works must remain under AGPL v3.
+
 ## Application Settings
 
 On first start, App Settings are created in the database to control application behavior. You can view and edit these in the Django admin panel under "App Settings".
