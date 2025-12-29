@@ -1,0 +1,124 @@
+{% extends "app/layout.html" %}
+
+{% block content %}
+
+<h2>{{ title }}</h2>
+<h3>{{ message }}</h3>
+
+<style>
+    table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 20px;
+    }
+
+    th, td {
+        border: 1px solid black;
+        padding: 10px;
+        text-align: left;
+    }
+
+    th {
+        background-color: #f4f4f4;
+    }
+
+    .INFO {
+        color: green;
+    }
+
+    .WARN {
+        color: orange;
+    }
+
+    .ERROR {
+        color: red;
+    }
+</style>
+
+<h1>Device Logs</h1>
+
+<label for="statusFilter">Filter by Status:</label>
+<select id="statusFilter" onchange="applyFilter()">
+    <option value="">All</option>
+    <option value="DEBUG">Debug</option>
+    <option value="INFO">Info</option>
+    <option value="WARN">Warning</option>
+    <option value="ERROR">Error</option>
+</select>
+
+<table>
+    <thead>
+        <tr>
+            <th>Timestamp (Local)</th>
+            <th>Device</th>
+            <th>Status</th>
+            <th>Message</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for log in logs %}
+        <tr>
+            <!-- Store UTC time in a hidden data-utc attribute for JavaScript conversion -->
+            <td class="log-time" data-utc="{{ log.created_at|date:'c' }}">{{ log.created_at }}</td>
+            <td>{{ log.device.familiar_name|default:"N/A" }}</td>
+            <td class="{{ log.status }}">{{ log.status }}</td>
+            <td>{{ log.message }}</td>
+        </tr>
+        {% empty %}
+        <tr>
+            <td colspan="4">No logs available.</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+
+
+<script>
+
+    function applyFilter() {
+        let selectedStatus = document.getElementById("statusFilter").value;
+        let newUrl = window.location.pathname + (selectedStatus ? `?status=${selectedStatus}` : '');
+        window.location.href = newUrl;  // Reload page with filter
+    }
+
+    // Keep filter selected after reload
+    document.addEventListener("DOMContentLoaded", function () {
+        let urlParams = new URLSearchParams(window.location.search);
+        let selectedStatus = urlParams.get("status");
+        if (selectedStatus) {
+            document.getElementById("statusFilter").value = selectedStatus;
+        }
+    });
+
+    document.addEventListener("DOMContentLoaded", function () {
+        document.querySelectorAll(".log-time").forEach(el => {
+            let utcString = el.dataset.utc.trim();  // Ensure no extra spaces
+
+            // Ensure timestamp is not empty
+            if (!utcString) {
+                console.warn("Empty timestamp detected:", el);
+                return;
+            }
+
+            // Convert to Date object
+            let utcDate = new Date(utcString);
+
+            // Validate date parsing
+            if (isNaN(utcDate.getTime())) {
+                console.error("Invalid UTC date:", utcString);
+                return;
+            }
+
+            // Convert to browser's local timezone
+            let localTime = utcDate.toLocaleString(undefined, {
+                year: 'numeric', month: '2-digit', day: '2-digit',
+                hour: '2-digit', minute: '2-digit', second: '2-digit'
+            });
+
+            el.textContent = localTime; // Replace UTC with local time
+        });
+    });
+</script>
+
+{% endblock %}

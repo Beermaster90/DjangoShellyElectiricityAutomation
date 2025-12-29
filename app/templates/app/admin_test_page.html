@@ -1,0 +1,43 @@
+{% extends "app/layout.html" %}
+{% block content %}
+<h2>Admin Test Page</h2>
+<form method="post">
+    {% csrf_token %}
+    <button type="submit" name="action" value="fetch_prices">Fetch Prices</button>
+</form>
+<hr>
+<h3>Get Device Status</h3>
+<form method="post">
+    {% csrf_token %}
+    <select name="device_id">
+        {% for device in devices %}
+            <option value="{{ device.device_id }}">{{ device.familiar_name }}</option>
+        {% endfor %}
+    </select>
+    <button type="submit" name="action" value="get_status">Get Status</button>
+</form>
+<hr>
+<h3>Assign Cheapest Hours to Device (Override 24h check)</h3>
+<form method="post">
+    {% csrf_token %}
+    <select name="cheapest_device_id">
+        {% for device in devices %}
+            <option value="{{ device.device_id }}">{{ device.familiar_name }}</option>
+        {% endfor %}
+    </select>
+    <button type="submit" name="action" value="assign_cheapest_hours">Assign Cheapest Hours</button>
+</form>
+<hr>
+{% if result %}
+    <h4>Result:</h4>
+    <pre>{{ result|safe }}</pre>
+{% endif %}
+{% if assigned_hours %}
+    <h4>Assigned Hours:</h4>
+    <ul>
+        {% for hour in assigned_hours %}
+            <li>{{ hour }}</li>
+        {% endfor %}
+    </ul>
+{% endif %}
+{% endblock %}
