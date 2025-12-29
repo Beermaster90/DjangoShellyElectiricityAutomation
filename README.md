@@ -1,6 +1,10 @@
 # DjangoShellyElectiricityAutomation Docker Usage Guide
 # First-Time Project Setup
 
+## Prerequisites
+- Docker installed (required for `docker-prod.sh` and `docker-test.sh`).
+- Python 3 (required for local venv setup).
+
 ## 1. Create a Python Virtual Environment (venv)
 ```bash
 python3 -m venv venv
