@@ -82,6 +82,22 @@ Replace the tag with the desired version (including seconds).
 - Username: `admin`
 - Password: `admin12345`
 
+## Admin Setup: Add Shelly Devices
+1. Open the admin panel: `http://<host>:8000/admin/`
+2. Log in with your admin user.
+3. Go to `App` -> `Shelly Devices` -> `Add`.
+4. Fill in the device fields:
+   - `Familiar name`: a friendly name you choose.
+   - `Shelly server`: copy this from the Shelly device info page (server/base URL).
+   - `Shelly API key`: copy this from the Shelly device info page (auth/API key).
+   - `Shelly device name`: device name from Shelly (required).
+   - `Relay channel`, `Run hours per day`, and transfer prices as needed.
+5. Save the device.
+
+### Where to find Shelly server and API key
+Open the Shelly app or web UI, select the device, and open its info/details page.
+Copy the `Server` (base URL) and `API key/Auth key` values into the fields above.
+
 ## Notes
 - The scripts automatically stop and remove any existing container with the same name before starting a new one.
 - Data is persistent between runs as long as you do not delete the `~/DjangoShellyElectiricityAutomation/data/` or `~/DjangoShellyElectiricityAutomation/data-test/` folders.
