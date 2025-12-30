@@ -86,6 +86,8 @@ Replace the tag with the desired version (including seconds).
 - Username: `admin`
 - Password: `admin12345`
 
+Note: Remember to change password from Admin menu -> Users -> Edit Admin!
+
 ## Admin Setup: Add Shelly Devices
 1. Open the admin panel: `http://<host>:8000/admin/`
 2. Log in with your admin user.
