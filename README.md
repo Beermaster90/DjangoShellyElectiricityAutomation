@@ -52,6 +52,16 @@ bash docker-test.sh
 - The app will run on port 9000.
 - Persistent data is stored in `~/DjangoShellyElectiricityAutomation/data-test/` in your home directory.
 
+## Connecting to the Web UI
+Once the container is running, open the web page in your browser:
+- Local machine: `http://localhost:8000/`
+- LAN access: `http://<lan-ip>:8000/` (use the host machine's IP address on your network)
+
+## First-Time Usage Notes
+- Log in with your user account before anything will work.
+- Add your Shelly devices and set the ENTSO API key in the admin panel.
+- Price data updates after the first hour; allow up to 1 hour for hourly data to appear.
+
 ## Versioning
 
 - The Docker image version is read from the `VERSION` file in the project root.
