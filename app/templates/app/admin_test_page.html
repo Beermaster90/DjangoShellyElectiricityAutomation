@@ -17,6 +17,12 @@
     <button type="submit" name="action" value="get_status">Get Status</button>
 </form>
 <hr>
+<h3>Run 15-Minute Schedule</h3>
+<form method="post">
+    {% csrf_token %}
+    <button type="submit" name="action" value="run_schedule">Run Now</button>
+</form>
+<hr>
 <h3>Assign Cheapest Hours to Device (Override 24h check)</h3>
 <form method="post">
     {% csrf_token %}

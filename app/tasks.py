@@ -13,6 +13,7 @@ from app.services.shelly_service import (
     ShellyTemperatureService,
     extract_temperature_c,
 )
+from app.thermostat_manager import ThermostatAssignmentManager
 from app.price_views import call_fetch_prices, get_cheapest_hours
 from .logger import log_device_event
 from app.utils.time_utils import TimeUtils
@@ -136,6 +137,7 @@ class DeviceController:
                         )
 
             DeviceController.fetch_thermostat_temperatures()
+            ThermostatAssignmentManager.apply_next_period_assignments()
                         
         except Exception as e:
             log_device_event(None, f"Error controlling Shelly devices: {e}", "ERROR")

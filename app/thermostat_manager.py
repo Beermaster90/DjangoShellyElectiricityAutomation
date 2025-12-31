@@ -1,0 +1,77 @@
+from datetime import timedelta
+
+from app.models import ShellyDevice, ElectricityPrice, DeviceAssignment
+from app.utils.time_utils import TimeUtils
+from app.logger import log_device_event
+
+
+class ThermostatAssignmentManager:
+    """Manage thermostat-driven device assignments for upcoming 15-minute periods."""
+
+    @staticmethod
+    def apply_next_period_assignments() -> None:
+        now = TimeUtils.now_utc()
+        period_start_minutes = (now.minute // 15) * 15
+        current_start = now.replace(
+            minute=period_start_minutes,
+            second=0,
+            microsecond=0,
+        )
+        next_start = current_start + timedelta(minutes=15)
+        next_end = next_start + timedelta(minutes=15)
+
+        next_price = (
+            ElectricityPrice.objects.filter(
+                start_time__gte=next_start,
+                start_time__lt=next_end,
+            )
+            .order_by("start_time")
+            .first()
+        )
+        if not next_price:
+            log_device_event(
+                None,
+                f"No electricity price found for next period {next_start} to {next_end}",
+                "WARN",
+            )
+            return
+
+        devices = ShellyDevice.objects.filter(status=1, thermostat_device__isnull=False).select_related(
+            "thermostat_device"
+        )
+
+        for device in devices:
+            thermostat = device.thermostat_device
+            if not thermostat or not thermostat.temperature_updated_at:
+                continue
+
+            if (now - thermostat.temperature_updated_at) > timedelta(minutes=15):
+                continue
+
+            current_temp = thermostat.current_temperature
+            min_temp = thermostat.min_temperature
+
+            if current_temp < min_temp:
+                assignment, created = DeviceAssignment.objects.get_or_create(
+                    user=device.user,
+                    device=device,
+                    electricity_price=next_price,
+                )
+                if created:
+                    log_device_event(
+                        device,
+                        f"Thermostat below min ({current_temp} < {min_temp}). Assigned next period.",
+                        "INFO",
+                    )
+            else:
+                deleted, _ = DeviceAssignment.objects.filter(
+                    user=device.user,
+                    device=device,
+                    electricity_price=next_price,
+                ).delete()
+                if deleted:
+                    log_device_event(
+                        device,
+                        f"Thermostat above min ({current_temp} >= {min_temp}). Unassigned next period.",
+                        "INFO",
+                    )

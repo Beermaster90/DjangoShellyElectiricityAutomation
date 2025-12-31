@@ -283,6 +283,14 @@ def admin_test_page(request: HttpRequest):
                     ]
                 else:
                     assigned_hours = hours
+        elif action == "run_schedule":
+            from app.tasks import DeviceController
+
+            try:
+                DeviceController.control_shelly_devices()
+                result = "15-minute schedule executed."
+            except Exception as e:
+                result = f"Failed to run 15-minute schedule: {e}"
         elif action == "assign_device":
             assign_device_id = request.POST.get("assign_device_id")
             assign_price_id = request.POST.get("assign_price_id")
