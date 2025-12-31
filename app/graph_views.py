@@ -3,7 +3,7 @@ from django.shortcuts import render
 from django.http import HttpRequest, JsonResponse
 from django.contrib.auth.decorators import login_required
 from django.db.models import Q
-from .models import ElectricityPrice, ShellyDevice, DeviceAssignment
+from .models import ElectricityPrice, ShellyDevice, DeviceAssignment, ShellyTemperature, TemperatureReading
 from app.utils.time_utils import TimeUtils
 from .views import get_version_info
 import json
@@ -80,6 +80,52 @@ def graphs(request: HttpRequest):
         historical_prices, fixed_price, watts, selected_user, shelly_controlled_percentage
     )
 
+    thermostat_devices = ShellyTemperature.objects.filter(user=selected_user).order_by("familiar_name")
+    selected_thermostat_id = request.GET.get("thermostat_device_id")
+    selected_thermostat = None
+    if selected_thermostat_id:
+        selected_thermostat = thermostat_devices.filter(device_id=selected_thermostat_id).first()
+    if not selected_thermostat:
+        selected_thermostat = thermostat_devices.first()
+
+    temp_graph_data = {"labels": [], "values": []}
+    temp_year_graph_data = {"labels": [], "values": []}
+    if selected_thermostat:
+        now_utc = TimeUtils.now_utc()
+        start_15d = now_utc - timedelta(days=15)
+        end_15d = now_utc + timedelta(days=15)
+
+        readings = TemperatureReading.objects.filter(
+            thermostat=selected_thermostat,
+            recorded_at__gte=start_15d,
+            recorded_at__lte=end_15d,
+        ).order_by("recorded_at")
+
+        user_tz = TimeUtils.get_user_timezone(request.user)
+        for reading in readings:
+            local_dt = reading.recorded_at.astimezone(user_tz)
+            temp_graph_data["labels"].append(local_dt.strftime("%d.%m %H:%M"))
+            temp_graph_data["values"].append(float(reading.temperature_c))
+
+        year_start = now_utc - timedelta(days=365)
+        year_readings = TemperatureReading.objects.filter(
+            thermostat=selected_thermostat,
+            recorded_at__gte=year_start,
+        ).order_by("recorded_at")
+
+        monthly = {}
+        for reading in year_readings:
+            local_dt = reading.recorded_at.astimezone(user_tz)
+            key = local_dt.strftime("%Y-%m")
+            monthly.setdefault(key, []).append(float(reading.temperature_c))
+
+        for key in sorted(monthly.keys()):
+            values = monthly[key]
+            avg = sum(values) / len(values)
+            label = datetime.strptime(key, "%Y-%m").strftime("%b %Y")
+            temp_year_graph_data["labels"].append(label)
+            temp_year_graph_data["values"].append(round(avg, 2))
+
     context = {
         "title": "Cost Graphs",
         "year": datetime.now().year,
@@ -88,6 +134,10 @@ def graphs(request: HttpRequest):
         "watts": watts,
         "shelly_controlled_percentage": shelly_controlled_percentage,
         "graph_data": json.dumps(graph_data),
+        "thermostat_devices": thermostat_devices,
+        "selected_thermostat": selected_thermostat,
+        "temperature_graph_data": json.dumps(temp_graph_data),
+        "temperature_year_graph_data": json.dumps(temp_year_graph_data),
         "version": get_version_info(),
         "users": users,
         "selected_user": selected_user,

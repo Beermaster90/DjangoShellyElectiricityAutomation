@@ -117,6 +117,46 @@
     </div>
 </div>
 
+<div class="row" style="margin-top: 30px;">
+    <div class="col-md-12">
+        <div class="panel panel-info">
+            <div class="panel-heading">
+                <h3 class="panel-title">Temperature Overview</h3>
+            </div>
+            <div class="panel-body">
+                <div class="form-group">
+                    <label for="thermostatSelect">Select Thermostat:</label>
+                    <select id="thermostatSelect" class="form-control" onchange="updateThermostatSelection()">
+                        {% for thermostat in thermostat_devices %}
+                            <option value="{{ thermostat.device_id }}" {% if selected_thermostat and thermostat.device_id == selected_thermostat.device_id %}selected{% endif %}>
+                                {{ thermostat.familiar_name }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="panel panel-default">
+                    <div class="panel-heading">
+                        <h3 class="panel-title">Last 15 Days</h3>
+                    </div>
+                    <div class="panel-body">
+                        <canvas id="temperatureChart" height="300"></canvas>
+                    </div>
+                </div>
+
+                <div class="panel panel-default">
+                    <div class="panel-heading">
+                        <h3 class="panel-title">Yearly Overview</h3>
+                    </div>
+                    <div class="panel-body">
+                        <canvas id="temperatureYearChart" height="300"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 {% endblock %}
 
 {% block scripts %}
@@ -126,6 +166,8 @@
 <script>
     let chart = null;
     let graphData = {{ graph_data|safe }};
+    let temperatureGraphData = {{ temperature_graph_data|safe }};
+    let temperatureYearGraphData = {{ temperature_year_graph_data|safe }};
 
     function calculateWatts() {
         const yearlyConsumption = parseFloat(document.getElementById('yearlyConsumption').value) || 0;
@@ -138,6 +180,17 @@
         const userId = document.getElementById('userSelect').value;
         const currentUrl = new URL(window.location.href);
         currentUrl.searchParams.set('user_id', userId);
+        window.location.href = currentUrl.toString();
+    }
+
+    function updateThermostatSelection() {
+        const thermostatSelect = document.getElementById('thermostatSelect');
+        const currentUrl = new URL(window.location.href);
+        if (thermostatSelect && thermostatSelect.value) {
+            currentUrl.searchParams.set('thermostat_device_id', thermostatSelect.value);
+        } else {
+            currentUrl.searchParams.delete('thermostat_device_id');
+        }
         window.location.href = currentUrl.toString();
     }
 
@@ -293,6 +346,86 @@
         });
     }
 
+    let tempChart = null;
+    let tempYearChart = null;
+
+    function updateTemperatureCharts() {
+        const tempCanvas = document.getElementById('temperatureChart');
+        if (!tempCanvas) {
+            return;
+        }
+        const tempCtx = tempCanvas.getContext('2d');
+        if (tempChart) {
+            tempChart.destroy();
+        }
+        tempChart = new Chart(tempCtx, {
+            type: 'line',
+            data: {
+                labels: temperatureGraphData.labels,
+                datasets: [
+                    {
+                        label: 'Temperature (C)',
+                        data: temperatureGraphData.values,
+                        borderColor: 'rgb(255, 159, 64)',
+                        backgroundColor: 'rgba(255, 159, 64, 0.1)',
+                        fill: false,
+                        tension: 0.1,
+                        pointRadius: 2,
+                        borderWidth: 2
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        title: {
+                            display: true,
+                            text: 'C'
+                        }
+                    }
+                }
+            }
+        });
+
+        const yearCanvas = document.getElementById('temperatureYearChart');
+        if (!yearCanvas) {
+            return;
+        }
+        const yearCtx = yearCanvas.getContext('2d');
+        if (tempYearChart) {
+            tempYearChart.destroy();
+        }
+        tempYearChart = new Chart(yearCtx, {
+            type: 'bar',
+            data: {
+                labels: temperatureYearGraphData.labels,
+                datasets: [
+                    {
+                        label: 'Average Temperature (C)',
+                        data: temperatureYearGraphData.values,
+                        backgroundColor: 'rgba(54, 162, 235, 0.5)',
+                        borderColor: 'rgb(54, 162, 235)',
+                        borderWidth: 1
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        title: {
+                            display: true,
+                            text: 'C'
+                        }
+                    }
+                }
+            }
+        });
+    }
+
     // Initialize chart on page load
     document.addEventListener('DOMContentLoaded', function() {
         // Calculate initial watts value from yearly consumption
@@ -306,6 +439,7 @@
             ctx.font = "16px Arial";
             ctx.fillText("No data available. Please check if you have electricity price data in the database.", 10, 50);
         }
+        updateTemperatureCharts();
     });
 
     // Handle form submission

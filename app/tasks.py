@@ -6,7 +6,14 @@ from django.utils.timezone import now
 from django.conf import settings
 from django.test import RequestFactory
 from django.http import JsonResponse
-from app.models import ShellyDevice, ShellyTemperature, ElectricityPrice, DeviceLog, DeviceAssignment
+from app.models import (
+    ShellyDevice,
+    ShellyTemperature,
+    TemperatureReading,
+    ElectricityPrice,
+    DeviceLog,
+    DeviceAssignment,
+)
 from app.shelly_views import toggle_device_output, fetch_device_status
 from app.services.shelly_service import (
     ShellyService,
@@ -178,6 +185,11 @@ class DeviceController:
                         "temperature_updated_at",
                         "updated_at",
                     ]
+                )
+                TemperatureReading.objects.create(
+                    thermostat=temperature_device,
+                    temperature_c=temperature_c,
+                    recorded_at=temperature_device.temperature_updated_at,
                 )
 
                 log_device_event(

@@ -152,6 +152,19 @@ class ElectricityPrice(models.Model):
         return f"{float(self.price_kwh):.3f} c/kWh from {self.start_time} to {self.end_time}"
 
 
+class TemperatureReading(models.Model):
+    thermostat = models.ForeignKey(
+        ShellyTemperature,
+        on_delete=models.CASCADE,
+        related_name="temperature_readings",
+    )
+    temperature_c = models.DecimalField(max_digits=5, decimal_places=2)
+    recorded_at = models.DateTimeField(default=TimeUtils.now_utc)
+
+    def __str__(self):
+        return f"{self.thermostat.familiar_name} at {self.recorded_at}: {self.temperature_c} C"
+
+
 class DeviceLog(models.Model):
     STATUS_CHOICES = [
         ("INFO", "Info"),
