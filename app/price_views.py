@@ -31,6 +31,26 @@ def get_entsoe_api_key():
     return setting.value
 
 
+def _format_entsoe_series_preview(series, limit=3):
+    if series is None:
+        return "no series"
+    total = len(series)
+    if total == 0:
+        return "count=0"
+
+    def _format_items(items):
+        return {
+            TimeUtils.to_utc(ts).strftime("%Y-%m-%dT%H:%M:%SZ"): float(price)
+            for ts, price in items
+        }
+
+    items = list(series.items())
+    preview = {"count": total, "first": _format_items(items[:limit])}
+    if total > limit:
+        preview["last"] = _format_items(items[-limit:])
+    return preview
+
+
 def call_fetch_prices(request):
     api_key = get_entsoe_api_key()
     if not api_key:
@@ -59,18 +79,45 @@ def call_fetch_prices(request):
     client = EntsoePandasClient(api_key=api_key)
 
     try:
+        log_device_event(
+            None,
+            f"ENTSOE request: area={area_code}, start={start}, end={end}",
+            "INFO",
+        )
         # Query day‑ahead prices (returns a Pandas Series with a datetime index)
         price_series = client.query_day_ahead_prices(
             country_code=area_code, start=start, end=end
         )
+
+        log_device_event(
+            None,
+            f"ENTSOE raw result preview: {_format_entsoe_series_preview(price_series)}",
+            "INFO",
+        )
         
         # Resample to 15-minute intervals using forward fill (each 15-min gets same price as the hour)
         price_series = price_series.resample('15min').ffill()
+
+        log_device_event(
+            None,
+            f"ENTSOE resampled preview: {_format_entsoe_series_preview(price_series)}",
+            "INFO",
+        )
         
     except Exception as e:
         # Sanitize error to hide API key and other sensitive information
         safe_error = SecurityUtils.get_safe_error_message(
             e, "ENTSOE price fetch failed"
+        )
+        error_type = type(e).__name__
+        if safe_error.endswith(":"):
+            safe_error = f"{safe_error} {error_type}"
+        else:
+            safe_error = f"{safe_error} (type={error_type})"
+        log_device_event(
+            None,
+            f"ENTSOE request failed for area={area_code}, start={start}, end={end}",
+            "ERROR",
         )
         log_device_event(None, safe_error, "ERROR")
         return JsonResponse(
