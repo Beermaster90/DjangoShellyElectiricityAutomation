@@ -251,12 +251,12 @@ def extract_temperature_c(status_data):
         return None
 
     for key, block in device_status.items():
-        if key.startswith("temperature:"):
+        if key.startswith(("temperature:", "ht:")):
             temp = parse_block(block)
             if temp is not None:
                 return temp
 
-    for key in ("tmp", "temperature", "sensor", "sensor:0"):
+    for key in ("tmp", "temperature", "temperature:0", "sensor", "sensor:0", "ht", "ht:0"):
         if key in device_status:
             temp = parse_block(device_status.get(key))
             if temp is not None:
