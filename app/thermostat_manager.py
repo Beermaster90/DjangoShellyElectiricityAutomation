@@ -8,6 +8,8 @@ from app.logger import log_device_event
 class ThermostatAssignmentManager:
     """Manage thermostat-driven device assignments for upcoming 15-minute periods."""
 
+    HYSTERESIS_C = 0.5
+
     @staticmethod
     def apply_next_period_assignments() -> None:
         now = TimeUtils.now_utc()
@@ -50,8 +52,12 @@ class ThermostatAssignmentManager:
 
             current_temp = thermostat.current_temperature
             min_temp = thermostat.min_temperature
+            max_temp = thermostat.max_temperature
+            hysteresis = type(min_temp)(str(ThermostatAssignmentManager.HYSTERESIS_C))
+            min_trigger = min_temp - hysteresis
+            max_trigger = max_temp + hysteresis
 
-            if current_temp < min_temp:
+            if current_temp < min_trigger:
                 assignment, created = DeviceAssignment.objects.get_or_create(
                     user=device.user,
                     device=device,
@@ -60,10 +66,10 @@ class ThermostatAssignmentManager:
                 if created:
                     log_device_event(
                         device,
-                        f"Thermostat below min ({current_temp} < {min_temp}). Assigned next period.",
+                        f"Thermostat below min ({current_temp} < {min_trigger}). Assigned next period.",
                         "INFO",
                     )
-            else:
+            elif current_temp > max_trigger:
                 deleted, _ = DeviceAssignment.objects.filter(
                     user=device.user,
                     device=device,
@@ -72,6 +78,9 @@ class ThermostatAssignmentManager:
                 if deleted:
                     log_device_event(
                         device,
-                        f"Thermostat above min ({current_temp} >= {min_temp}). Unassigned next period.",
+                        f"Thermostat above max ({current_temp} > {max_trigger}). Unassigned next period.",
                         "INFO",
                     )
+            else:
+                # Within bounds: no assignment change.
+                continue

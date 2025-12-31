@@ -60,7 +60,16 @@ Once the container is running, open the web page in your browser:
 ## First-Time Usage Notes
 - Log in with your user account before anything will work.
 - Add your Shelly devices and set the ENTSO API key in the admin panel.
-- Price data updates after the first hour; allow up to 1 hour for hourly data to appear.
+- Initial price data appears when the next ENTSO-E day-ahead data is published (around 14:00 Finnish time, which is 12:00 UTC / 13:00 CET depending on DST).
+
+## Thermostat Support
+- Thermostat devices are supported.
+- Configure a Shelly Temperature device in Admin, then select it as the default thermostat from the Shelly Device dropdown.
+- Once configured, thermostat options appear on the device page and are used by the 15-minute automation logic.
+- Thermostat fields:
+  - Min temperature: if the current temperature is below (min - 0.5°C), the next 15-minute period is assigned (device will run).
+  - Max temperature: if the current temperature is above (max + 0.5°C), the next 15-minute period is unassigned (device will stop).
+  - Target temperature: stored for future use, currently not enforced in automation.
 
 ## Versioning
 
