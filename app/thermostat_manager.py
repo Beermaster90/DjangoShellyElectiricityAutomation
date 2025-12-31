@@ -66,7 +66,7 @@ class ThermostatAssignmentManager:
                 if created:
                     log_device_event(
                         device,
-                        f"Thermostat below min ({current_temp} < {min_trigger}). Assigned next period {next_price.start_time}.",
+                        f"Thermostat below min ({current_temp} < {min_trigger}). Assigned next period {next_price.start_time} UTC.",
                         "INFO",
                     )
             elif current_temp > max_trigger:
@@ -78,7 +78,7 @@ class ThermostatAssignmentManager:
                 if deleted:
                     log_device_event(
                         device,
-                        f"Thermostat above max ({current_temp} > {max_trigger}). Unassigned next period {next_price.start_time}.",
+                        f"Thermostat above max ({current_temp} > {max_trigger}). Unassigned next period {next_price.start_time} UTC.",
                         "INFO",
                     )
             else:
