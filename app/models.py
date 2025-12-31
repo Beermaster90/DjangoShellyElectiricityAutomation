@@ -71,6 +71,38 @@ class ShellyDevice(models.Model):
         help_text="Base URL of the Shelly server used for device communication",
     )
 
+    thermostat_device = models.ForeignKey(
+        "ShellyTemperature",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="controlled_devices",
+        help_text="Optional default thermostat device for this Shelly device",
+    )
+
+    def __str__(self):
+        return self.familiar_name
+
+
+class ShellyTemperature(models.Model):
+    device_id = models.AutoField(primary_key=True)  # Auto-generated device ID
+    familiar_name = models.CharField(max_length=255)  # User-defined familiar name
+    shelly_api_key = models.CharField(max_length=255)  # API key for the device
+    shelly_device_name = models.CharField(
+        max_length=255, blank=True, null=True
+    )  # Device name from the API
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+
+    shelly_server = models.URLField(
+        max_length=512,
+        default="https://yourapiaddress.shelly.cloud",
+        help_text="Base URL of the Shelly server used for device communication",
+    )
+
     def __str__(self):
         return self.familiar_name
 
@@ -182,6 +214,11 @@ def create_or_update_user_profile_and_group(sender, instance, created, **kwargs)
         "change_shellydevice",
         "add_shellydevice",
         "delete_shellydevice",
+        # ShellyTemperature permissions
+        "view_shellytemperature",
+        "change_shellytemperature",
+        "add_shellytemperature",
+        "delete_shellytemperature",
         # DeviceAssignment permissions
         "view_deviceassignment",
         "change_deviceassignment",
@@ -196,6 +233,7 @@ def create_or_update_user_profile_and_group(sender, instance, created, **kwargs)
     from itertools import chain
     model_cts = [
         ContentType.objects.get(app_label="app", model="shellydevice"),
+        ContentType.objects.get(app_label="app", model="shellytemperature"),
         ContentType.objects.get(app_label="app", model="deviceassignment"),
         ContentType.objects.get(app_label="app", model="electricityprice"),
     ]

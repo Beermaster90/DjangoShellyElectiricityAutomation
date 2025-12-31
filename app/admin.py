@@ -2,6 +2,7 @@ from django.contrib import admin
 from django.contrib.auth.models import User
 from .models import (
     ShellyDevice,
+    ShellyTemperature,
     ElectricityPrice,
     DeviceAssignment,
     AppSetting,
@@ -18,7 +19,7 @@ class ShellyDeviceAdmin(admin.ModelAdmin):
         "device_id",
         "familiar_name",
         "shelly_api_key",
-        "shelly_device_name",
+        "shelly_device_id",
         "run_hours_per_day",
         "day_transfer_price",
         "night_transfer_price",
@@ -29,6 +30,7 @@ class ShellyDeviceAdmin(admin.ModelAdmin):
         "last_contact",
         "relay_channel",
         "shelly_server",
+        "thermostat_device",
     )
     
     def get_automation_status(self, obj):
@@ -59,9 +61,15 @@ class ShellyDeviceAdmin(admin.ModelAdmin):
         "last_contact",
         "relay_channel",
         "shelly_server",
+        "thermostat_device",
     )
 
     ordering = ["-device_id"]
+
+    def shelly_device_id(self, obj):
+        return obj.shelly_device_name
+    shelly_device_id.short_description = "Shelly device id"
+    shelly_device_id.admin_order_field = "shelly_device_name"
 
     def save_model(self, request, obj, form, change):
         """Ensure new devices are owned by the user who creates them if not set."""
@@ -86,10 +94,83 @@ class ShellyDeviceAdmin(admin.ModelAdmin):
                 kwargs["queryset"] = User.objects.filter(
                     id=request.user.id
                 )  # Users only see themselves
+        if db_field.name == "thermostat_device":
+            if request.user.is_superuser:
+                kwargs["queryset"] = ShellyTemperature.objects.all()
+            else:
+                kwargs["queryset"] = ShellyTemperature.objects.filter(user=request.user)
         return super().formfield_for_foreignkey(db_field, request, **kwargs)
+
+    def formfield_for_dbfield(self, db_field, request, **kwargs):
+        formfield = super().formfield_for_dbfield(db_field, request, **kwargs)
+        if db_field.name == "shelly_device_name":
+            formfield.label = "Shelly device id"
+        return formfield
 
 
 admin.site.register(ShellyDevice, ShellyDeviceAdmin)
+
+
+### SHELLY TEMPERATURE ADMIN ###
+class ShellyTemperatureAdmin(admin.ModelAdmin):
+    list_display = (
+        "device_id",
+        "familiar_name",
+        "shelly_api_key",
+        "shelly_device_id",
+        "created_at",
+        "updated_at",
+        "user",
+        "shelly_server",
+    )
+    search_fields = ("familiar_name",)
+    readonly_fields = (
+        "device_id",
+        "created_at",
+        "updated_at",
+    )
+    fields = (
+        "device_id",
+        "familiar_name",
+        "shelly_api_key",
+        "shelly_device_name",
+        "created_at",
+        "updated_at",
+        "user",
+        "shelly_server",
+    )
+    ordering = ["-device_id"]
+
+    def shelly_device_id(self, obj):
+        return obj.shelly_device_name
+    shelly_device_id.short_description = "Shelly device id"
+    shelly_device_id.admin_order_field = "shelly_device_name"
+
+    def save_model(self, request, obj, form, change):
+        if not change and not request.user.is_superuser:
+            obj.user = request.user
+        super().save_model(request, obj, form, change)
+
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        return qs if request.user.is_superuser else qs.filter(user=request.user)
+
+    def formfield_for_foreignkey(self, db_field, request, **kwargs):
+        if db_field.name == "user":
+            if request.user.is_superuser:
+                kwargs["queryset"] = User.objects.all()
+            else:
+                kwargs["queryset"] = User.objects.filter(id=request.user.id)
+        return super().formfield_for_foreignkey(db_field, request, **kwargs)
+
+    def formfield_for_dbfield(self, db_field, request, **kwargs):
+        formfield = super().formfield_for_dbfield(db_field, request, **kwargs)
+        if db_field.name == "shelly_device_name":
+            formfield.label = "Shelly device id"
+        return formfield
+
+
+admin.site.register(ShellyTemperature, ShellyTemperatureAdmin)
 
 
 ### ELECTRICITY PRICE ADMIN (View Only for Non-Admins) ###
