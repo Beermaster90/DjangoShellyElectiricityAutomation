@@ -9,7 +9,8 @@ from .models import (
     AppSetting,
 )
 import pandas as pd
-from entsoe import EntsoePandasClient
+from entsoe import EntsoeRawClient
+from entsoe.parsers import parse_prices
 from django.shortcuts import render
 from django.utils.timezone import now
 from datetime import timedelta
@@ -19,6 +20,7 @@ from app.utils.time_utils import TimeUtils
 from app.utils.security_utils import SecurityUtils
 from app.utils.db_utils import with_db_retries
 import pytz  # pip install pytz
+import xml.etree.ElementTree as ET
 
 LOCAL_TZ = pytz.timezone("Europe/Helsinki")  # change if needed
 
@@ -51,6 +53,73 @@ def _format_entsoe_series_preview(series, limit=3):
     return preview
 
 
+def _summarize_entsoe_xml(raw_xml):
+    try:
+        root = ET.fromstring(raw_xml)
+    except ET.ParseError as e:
+        return {"parse_error": str(e)}
+
+    def local_name(tag):
+        return tag.split("}")[-1] if "}" in tag else tag
+
+    time_series_count = 0
+    time_series = []
+    reasons = []
+    for elem in root.iter():
+        name = local_name(elem.tag)
+        if name == "TimeSeries":
+            time_series_count += 1
+            ts_info = {}
+            for child in list(elem):
+                child_name = local_name(child.tag)
+                if child_name == "Period":
+                    period = child
+                    start = None
+                    resolution = None
+                    positions = []
+                    for pchild in list(period):
+                        pchild_name = local_name(pchild.tag)
+                        if pchild_name == "timeInterval":
+                            for tchild in list(pchild):
+                                tchild_name = local_name(tchild.tag)
+                                if tchild_name == "start":
+                                    start = tchild.text
+                        elif pchild_name == "resolution":
+                            resolution = pchild.text
+                        elif pchild_name == "Point":
+                            pos = None
+                            for point_child in list(pchild):
+                                point_child_name = local_name(point_child.tag)
+                                if point_child_name == "position":
+                                    try:
+                                        pos = int(point_child.text)
+                                    except (TypeError, ValueError):
+                                        pos = None
+                            if pos is not None:
+                                positions.append(pos)
+                    ts_info = {
+                        "start": start,
+                        "resolution": resolution,
+                        "min_position": min(positions) if positions else None,
+                        "max_position": max(positions) if positions else None,
+                        "points": len(positions),
+                    }
+            if ts_info:
+                time_series.append(ts_info)
+        if name == "Reason":
+            code = None
+            text = None
+            for child in list(elem):
+                child_name = local_name(child.tag)
+                if child_name == "code":
+                    code = child.text
+                elif child_name == "text":
+                    text = child.text
+            reasons.append({"code": code, "text": text})
+
+    return {"time_series_count": time_series_count, "series": time_series, "reasons": reasons}
+
+
 def call_fetch_prices(request):
     api_key = get_entsoe_api_key()
     if not api_key:
@@ -59,11 +128,13 @@ def call_fetch_prices(request):
         )
     area_code = "10YFI-1--------U"  # Finland, modify as needed
 
-    # Get current UTC time and align it to the current hour
-    now = TimeUtils.now_utc()
-    aligned_now = TimeUtils.to_utc(datetime(now.year, now.month, now.day, now.hour))
+    # Use local midnight boundaries for day-ahead prices
+    now_utc = TimeUtils.now_utc()
+    now_local = now_utc.astimezone(LOCAL_TZ)
+    start_local = now_local.replace(hour=0, minute=0, second=0, microsecond=0)
+    end_local = start_local + timedelta(days=1)
 
-    future_cutoff = now + timedelta(hours=12)
+    future_cutoff = now_utc + timedelta(hours=12)
 
     future_prices_exist = ElectricityPrice.objects.filter(
         start_time__gt=future_cutoff
@@ -73,26 +144,61 @@ def call_fetch_prices(request):
         return JsonResponse({"message": "Prices already up-to-date."}, status=200)
 
     # Convert to Pandas Timestamp (ensuring UTC consistency)
-    start = pd.Timestamp(aligned_now)
-    end = pd.Timestamp(aligned_now + timedelta(days=1))
-
-    client = EntsoePandasClient(api_key=api_key)
+    start = pd.Timestamp(start_local)
+    end = pd.Timestamp(end_local)
 
     try:
+        log_device_event(
+            None,
+            f"ENTSOE debug: now_utc={now_utc.isoformat()}, now_local={now_local.isoformat()}, tz={LOCAL_TZ}",
+            "DEBUG",
+        )
+        log_device_event(
+            None,
+            f"ENTSOE debug: api_key_present={'yes' if api_key else 'no'}",
+            "DEBUG",
+        )
         log_device_event(
             None,
             f"ENTSOE request: area={area_code}, start={start}, end={end}",
             "INFO",
         )
-        # Query day‑ahead prices (returns a Pandas Series with a datetime index)
-        price_series = client.query_day_ahead_prices(
+        raw_client = EntsoeRawClient(api_key=api_key)
+        raw_response = raw_client.query_day_ahead_prices(
             country_code=area_code, start=start, end=end
+        )
+
+        parsed = parse_prices(raw_response)
+        preferred_keys = ("15min", "15T", "60min", "60T", "30min", "30T")
+        price_series = None
+        selected_resolution = None
+        for key in preferred_keys:
+            series = parsed.get(key)
+            if series is not None and len(series) > 0:
+                price_series = series
+                selected_resolution = key
+                break
+
+        if price_series is None:
+            raise ValueError("Parsed ENTSOE price series is empty")
+
+        if price_series.index.tz is None:
+            price_series = price_series.tz_localize(pytz.UTC)
+
+        start_utc = TimeUtils.to_utc(start_local)
+        end_utc = TimeUtils.to_utc(end_local)
+        price_series = price_series.loc[(price_series.index >= start_utc) & (price_series.index < end_utc)]
+
+        log_device_event(
+            None,
+            f"ENTSOE parsed resolution: {selected_resolution}",
+            "DEBUG",
         )
 
         log_device_event(
             None,
             f"ENTSOE raw result preview: {_format_entsoe_series_preview(price_series)}",
-            "INFO",
+            "DEBUG",
         )
         
         # Resample to 15-minute intervals using forward fill (each 15-min gets same price as the hour)
@@ -101,14 +207,58 @@ def call_fetch_prices(request):
         log_device_event(
             None,
             f"ENTSOE resampled preview: {_format_entsoe_series_preview(price_series)}",
-            "INFO",
+            "DEBUG",
         )
         
     except Exception as e:
+        try:
+            raw_client = EntsoeRawClient(api_key=api_key)
+            raw_response = raw_client.query_day_ahead_prices(
+                country_code=area_code, start=start, end=end
+            )
+            raw_text = SecurityUtils.sanitize_message(str(raw_response))
+            preview = raw_text[:500]
+            log_device_event(
+                None,
+                f"ENTSOE raw response preview: length={len(raw_text)} preview={preview}",
+                "DEBUG",
+            )
+            xml_summary = _summarize_entsoe_xml(raw_text)
+            log_device_event(
+                None,
+                f"ENTSOE raw response summary: {xml_summary}",
+                "DEBUG",
+            )
+            try:
+                parsed = parse_prices(raw_text)
+                parsed_summary = {
+                    key: {
+                        "count": len(series),
+                        "start": series.index.min().isoformat() if len(series) else None,
+                        "end": series.index.max().isoformat() if len(series) else None,
+                    }
+                    for key, series in parsed.items()
+                }
+                log_device_event(
+                    None,
+                    f"ENTSOE parsed price summary: {parsed_summary}",
+                    "DEBUG",
+                )
+            except Exception as parse_error:
+                parse_error_safe = SecurityUtils.get_safe_error_message(
+                    parse_error, "ENTSOE parse_prices failed"
+                )
+                log_device_event(None, parse_error_safe, "ERROR")
+        except Exception as raw_error:
+            raw_error_safe = SecurityUtils.get_safe_error_message(
+                raw_error, "ENTSOE raw response fetch failed"
+            )
+            log_device_event(None, raw_error_safe, "ERROR")
         # Sanitize error to hide API key and other sensitive information
         safe_error = SecurityUtils.get_safe_error_message(
             e, "ENTSOE price fetch failed"
         )
+        safe_error = SecurityUtils.sanitize_message(safe_error)
         error_type = type(e).__name__
         if safe_error.endswith(":"):
             safe_error = f"{safe_error} {error_type}"
