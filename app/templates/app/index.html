@@ -159,6 +159,11 @@
             .toggle-checkbox:checked + .toggle-label:hover {
                 background-color: #1976D2;
             }
+
+            .temp-current {
+                color: #28a745;
+                font-weight: bold;
+            }
         </style>
 
         <!-- Device Selection Dropdown -->
@@ -170,7 +175,13 @@
                     data-night-price="{{ device.night_transfer_price }}"
                     data-hours-needed="{{ device.run_hours_per_day }}"
                     data-cheapest-hours="{{ device.cheapest_hours|join:',' }}"
-                    data-device-status="{{ device.status }}">
+                    data-device-status="{{ device.status }}"
+                    data-thermostat-name="{% if device.thermostat_device %}{{ device.thermostat_device.familiar_name }}{% endif %}"
+                    data-thermostat-min="{% if device.thermostat_device %}{{ device.thermostat_device.min_temperature }}{% endif %}"
+                    data-thermostat-max="{% if device.thermostat_device %}{{ device.thermostat_device.max_temperature }}{% endif %}"
+                    data-thermostat-target="{% if device.thermostat_device %}{{ device.thermostat_device.hoped_temperature }}{% endif %}"
+                    data-thermostat-current="{% if device.thermostat_device and device.thermostat_device.temperature_updated_at %}{{ device.thermostat_device.current_temperature }}{% endif %}"
+                    data-thermostat-updated="{% if device.thermostat_device and device.thermostat_device.temperature_updated_at %}{{ device.thermostat_device.temperature_updated_at|date:'c' }}{% endif %}">
                 {% if user.is_superuser and device.user != user %}
                     {{ device.familiar_name }} ({{ device.user.username }})
                 {% else %}
@@ -205,6 +216,14 @@
                 <div class="device-info-right">
                     <p><strong>Device Status:</strong> <span id="deviceStatus">-</span></p>
                     <p><strong>Device Running:</strong> <span id="deviceRunning">-</span></p>
+                    <div id="thermostatInfo" style="display: none;">
+                        <p><strong>Thermostat Device:</strong> <span id="thermostatNameText">-</span></p>
+                        <p><strong>Min Temperature:</strong> <span id="thermostatMinText">-</span></p>
+                        <p><strong>Max Temperature:</strong> <span id="thermostatMaxText">-</span></p>
+                        <p><strong>Target Temperature:</strong> <span id="thermostatTargetText">-</span></p>
+                        <p><strong>Current Temperature:</strong> <span id="thermostatCurrentText" class="temp-current">-</span></p>
+                        <p><strong>Temperature Updated:</strong> <span id="thermostatUpdatedText">-</span></p>
+                    </div>
                     <p><strong>Your Timezone:</strong> {{ user_timezone }}</p>
                 </div>
             </div>
@@ -379,10 +398,35 @@
                 let cheapestHours = selectedOption.getAttribute("data-cheapest-hours") || "";
                 let hoursNeeded = parseInt(selectedOption.getAttribute("data-hours-needed")) || 0;
                 let deviceStatus = parseInt(selectedOption.getAttribute("data-device-status")) || 0;
+                let thermostatName = selectedOption.getAttribute("data-thermostat-name") || "";
+                let thermostatMin = selectedOption.getAttribute("data-thermostat-min") || "";
+                let thermostatMax = selectedOption.getAttribute("data-thermostat-max") || "";
+                let thermostatTarget = selectedOption.getAttribute("data-thermostat-target") || "";
+                let thermostatCurrent = selectedOption.getAttribute("data-thermostat-current") || "";
+                let thermostatUpdated = selectedOption.getAttribute("data-thermostat-updated") || "";
 
                 document.getElementById("dayPriceText").innerText = dayPrice.toFixed(2);
                 document.getElementById("nightPriceText").innerText = nightPrice.toFixed(2);
                 document.getElementById("hoursNeededText").innerText = hoursNeeded + " h";
+
+                const thermostatInfo = document.getElementById("thermostatInfo");
+                if (thermostatName) {
+                    thermostatInfo.style.display = "block";
+                    document.getElementById("thermostatNameText").innerText = thermostatName;
+                    document.getElementById("thermostatMinText").innerText = thermostatMin ? parseFloat(thermostatMin).toFixed(2) + " C" : "-";
+                    document.getElementById("thermostatMaxText").innerText = thermostatMax ? parseFloat(thermostatMax).toFixed(2) + " C" : "-";
+                    document.getElementById("thermostatTargetText").innerText = thermostatTarget ? parseFloat(thermostatTarget).toFixed(2) + " C" : "-";
+                    document.getElementById("thermostatCurrentText").innerText = thermostatCurrent ? parseFloat(thermostatCurrent).toFixed(2) + " C" : "N/A";
+                    if (thermostatUpdated) {
+                        const updatedDate = new Date(thermostatUpdated);
+                        const formattedUpdated = `${String(updatedDate.getDate()).padStart(2, '0')}.${String(updatedDate.getMonth() + 1).padStart(2, '0')} - ${String(updatedDate.getHours()).padStart(2, '0')}:${String(updatedDate.getMinutes()).padStart(2, '0')}`;
+                        document.getElementById("thermostatUpdatedText").innerText = formattedUpdated;
+                    } else {
+                        document.getElementById("thermostatUpdatedText").innerText = "N/A";
+                    }
+                } else {
+                    thermostatInfo.style.display = "none";
+                }
 
                 // Update toggle switch and status text
                 const isEnabled = deviceStatus === 1;

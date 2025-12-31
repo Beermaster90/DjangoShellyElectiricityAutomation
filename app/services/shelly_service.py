@@ -1,11 +1,13 @@
 import requests
 from ..models import (
     ShellyDevice,
+    ShellyTemperature,
     AppSetting,
 )  # Import the ShellyDevice model and AppSetting
 from ..utils.security_utils import SecurityUtils
 from ..utils.rate_limiter import shelly_rate_limiter
 import time
+from decimal import Decimal
 
 
 class ShellyService:
@@ -161,3 +163,103 @@ class ShellyService:
                     e, "Shelly device control failed"
                 )
                 return {"error": safe_error}
+
+
+class ShellyTemperatureService:
+    def __init__(self, device_id):
+        """Initialize ShellyTemperatureService with the correct auth_key and device_name."""
+        temperature_device = ShellyTemperature.objects.filter(device_id=device_id).first()
+
+        if temperature_device:
+            self.auth_key = temperature_device.shelly_api_key
+            self.device_name = temperature_device.shelly_device_name
+            self.base_cloud_url = temperature_device.shelly_server
+        else:
+            self.auth_key = None
+            self.device_name = "Unknown Device"
+            self.base_cloud_url = "Unknown"
+
+    def get_device_status(self):
+        """Fetches the status of a Shelly temperature device."""
+        if not self.auth_key:
+            return {"error": "Auth key is required for cloud requests."}
+        if not self.device_name:
+            return {"error": "Device name is missing for status request."}
+
+        url = f"{self.base_cloud_url}/device/status"
+        params = {
+            "id": self.device_name,
+            "auth_key": self.auth_key,
+        }
+
+        max_retries = 3
+        retry_count = 0
+
+        while retry_count < max_retries:
+            try:
+                shelly_rate_limiter.wait_if_needed(self.base_cloud_url, self.auth_key)
+                response = requests.get(url, params=params, timeout=15)
+
+                if response.status_code == 429:
+                    shelly_rate_limiter.record_failure(self.base_cloud_url, self.auth_key)
+                    retry_count += 1
+                    if retry_count < max_retries:
+                        continue
+                    raise requests.RequestException("Rate limit exceeded after retries")
+
+                response.raise_for_status()
+                status_data = response.json()
+                shelly_rate_limiter.record_success(self.base_cloud_url, self.auth_key)
+                status_data["shelly_device_name"] = self.device_name
+                return status_data
+
+            except requests.RequestException as e:
+                if retry_count < max_retries - 1:
+                    shelly_rate_limiter.record_failure(self.base_cloud_url, self.auth_key)
+                    retry_count += 1
+                    continue
+
+                safe_error = SecurityUtils.get_safe_error_message(
+                    e, "Shelly temperature request failed"
+                )
+                return {"error": safe_error}
+
+
+def extract_temperature_c(status_data):
+    """Extract temperature in Celsius from a Shelly device status payload."""
+    device_status = status_data.get("data", {}).get("device_status", {})
+
+    def to_celsius(value):
+        if isinstance(value, (int, float, Decimal)):
+            return float(value)
+        return None
+
+    def parse_block(block):
+        if isinstance(block, (int, float, Decimal)):
+            return float(block)
+        if not isinstance(block, dict):
+            return None
+        for key in ("tC", "tempC", "temperature", "value", "t"):
+            if key in block:
+                temp = to_celsius(block.get(key))
+                if temp is not None:
+                    return temp
+        if "tF" in block:
+            temp_f = to_celsius(block.get("tF"))
+            if temp_f is not None:
+                return (temp_f - 32) * 5 / 9
+        return None
+
+    for key, block in device_status.items():
+        if key.startswith("temperature:"):
+            temp = parse_block(block)
+            if temp is not None:
+                return temp
+
+    for key in ("tmp", "temperature", "sensor", "sensor:0"):
+        if key in device_status:
+            temp = parse_block(device_status.get(key))
+            if temp is not None:
+                return temp
+
+    return None

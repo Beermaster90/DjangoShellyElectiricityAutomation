@@ -102,6 +102,36 @@ class ShellyTemperature(models.Model):
         default="https://yourapiaddress.shelly.cloud",
         help_text="Base URL of the Shelly server used for device communication",
     )
+    min_temperature = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        default=0,
+        help_text="Minimum temperature threshold",
+    )
+    max_temperature = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        default=0,
+        help_text="Maximum temperature threshold",
+    )
+    hoped_temperature = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        default=0,
+        verbose_name="Target temperature",
+        help_text="Desired temperature setpoint",
+    )
+    current_temperature = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        default=0,
+        help_text="Last recorded temperature reading",
+    )
+    temperature_updated_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Timestamp of the last temperature update",
+    )
 
     def __str__(self):
         return self.familiar_name

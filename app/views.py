@@ -118,12 +118,12 @@ def get_common_context(request: HttpRequest) -> Dict[str, Any]:
             if not selected_user:
                 selected_user = users.first() or request.user
 
-        devices = ShellyDevice.objects.filter(user=selected_user)
+        devices = ShellyDevice.objects.filter(user=selected_user).select_related("thermostat_device")
         assignments = DeviceAssignment.objects.select_related(
             "device", "electricity_price"
         ).filter(user=selected_user)
     else:
-        devices = ShellyDevice.objects.filter(user=request.user)
+        devices = ShellyDevice.objects.filter(user=request.user).select_related("thermostat_device")
         assignments = DeviceAssignment.objects.filter(user=request.user)
     selected_device = devices.first()
 

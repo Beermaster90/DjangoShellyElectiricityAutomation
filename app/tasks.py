@@ -6,9 +6,13 @@ from django.utils.timezone import now
 from django.conf import settings
 from django.test import RequestFactory
 from django.http import JsonResponse
-from app.models import ShellyDevice, ElectricityPrice, DeviceLog, DeviceAssignment
+from app.models import ShellyDevice, ShellyTemperature, ElectricityPrice, DeviceLog, DeviceAssignment
 from app.shelly_views import toggle_device_output, fetch_device_status
-from app.services.shelly_service import ShellyService
+from app.services.shelly_service import (
+    ShellyService,
+    ShellyTemperatureService,
+    extract_temperature_c,
+)
 from app.price_views import call_fetch_prices, get_cheapest_hours
 from .logger import log_device_event
 from app.utils.time_utils import TimeUtils
@@ -130,9 +134,58 @@ class DeviceController:
                             f"Error in device group processing: {str(e)}",
                             "ERROR"
                         )
+
+            DeviceController.fetch_thermostat_temperatures()
                         
         except Exception as e:
             log_device_event(None, f"Error controlling Shelly devices: {e}", "ERROR")
+
+    @staticmethod
+    def fetch_thermostat_temperatures() -> None:
+        """Fetch temperature data for all thermostat devices."""
+        try:
+            temperature_devices = ShellyTemperature.objects.all()
+            if not temperature_devices.exists():
+                return
+
+            for temperature_device in temperature_devices:
+                shelly_service = ShellyTemperatureService(temperature_device.device_id)
+                status = shelly_service.get_device_status()
+                if "error" in status:
+                    log_device_event(
+                        None,
+                        f"Temperature fetch error for {temperature_device.familiar_name}: {status['error']}",
+                        "ERROR",
+                    )
+                    continue
+
+                temperature_c = extract_temperature_c(status)
+                if temperature_c is None:
+                    log_device_event(
+                        None,
+                        f"Temperature not found for {temperature_device.familiar_name}",
+                        "WARN",
+                    )
+                    continue
+
+                temperature_device.current_temperature = temperature_c
+                temperature_device.temperature_updated_at = TimeUtils.now_utc()
+                temperature_device.save(
+                    update_fields=[
+                        "current_temperature",
+                        "temperature_updated_at",
+                        "updated_at",
+                    ]
+                )
+
+                log_device_event(
+                    None,
+                    f"Temperature for {temperature_device.familiar_name}: {temperature_c:.2f} C",
+                    "INFO",
+                )
+
+        except Exception as e:
+            log_device_event(None, f"Error fetching thermostat temperatures: {e}", "ERROR")
 
     @staticmethod
     def _process_single_device(device: ShellyDevice, active_price_ids: list, start_time) -> None:
