@@ -128,11 +128,15 @@ def call_fetch_prices(request):
         )
     area_code = "10YFI-1--------U"  # Finland, modify as needed
 
-    # Use local midnight boundaries for day-ahead prices
+    # Use ENTSO-E publication window: 14:00 local time forward 25 hours
     now_utc = TimeUtils.now_utc()
     now_local = now_utc.astimezone(LOCAL_TZ)
-    start_local = now_local.replace(hour=0, minute=0, second=0, microsecond=0)
-    end_local = start_local + timedelta(days=1)
+    publication_local = now_local.replace(hour=14, minute=0, second=0, microsecond=0)
+    if now_local < publication_local:
+        start_local = publication_local - timedelta(days=1)
+    else:
+        start_local = publication_local
+    end_local = start_local + timedelta(hours=25)
 
     future_cutoff = now_utc + timedelta(hours=12)
 

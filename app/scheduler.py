@@ -1,6 +1,8 @@
 from apscheduler.triggers.cron import CronTrigger
 from django.db import connection
 from app.tasks import DeviceController
+from app.thermostat_manager import ThermostatAssignmentManager
+from app.thermostat_manager import ThermostatAssignmentManager
 from app.scheduler_config import get_scheduler
 import logging
 
@@ -37,6 +39,23 @@ def start_scheduler():
         replace_existing=True,
     )
 
+    # Run thermostat assignments at the top of the hour to cover the 15-past slot.
+    scheduler.add_job(
+        ThermostatAssignmentManager.apply_next_period_assignments,
+        trigger=CronTrigger(minute="0"),
+        id="thermostat_assignments",
+        max_instances=1,
+        replace_existing=True,
+    )
+
+    # Ensure thermostat-based assignments also cover :15 by running at the top of the hour
+    scheduler.add_job(
+        ThermostatAssignmentManager.apply_next_period_assignments,
+        trigger=CronTrigger(minute="0"),
+        id="thermostat_assign_next_period",
+        max_instances=1,
+        replace_existing=True,
+    )
+
     logger.info("APScheduler started successfully.")
     scheduler.start()
-
