@@ -325,6 +325,7 @@ def admin_test_page(request: HttpRequest):
                     device.day_transfer_price,
                     device.night_transfer_price,
                     device.run_hours_per_day,
+                    device.auto_assign_price_threshold,
                     local_tz,
                 )
                 assigned_count = 0

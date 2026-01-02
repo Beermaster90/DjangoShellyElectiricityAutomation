@@ -364,6 +364,7 @@ def set_cheapest_hours():
                 device.day_transfer_price,
                 device.night_transfer_price,
                 device.run_hours_per_day,
+                device.auto_assign_price_threshold,
             )
 
             # Create an assignment manager for the device's user
@@ -420,13 +421,16 @@ def get_cheapest_hours(
     day_transfer_price: float,
     night_transfer_price: float,
     hours_needed: int,
+    price_threshold: float | None = None,
     local_tz: timezone = LOCAL_TZ,
 ):
 
     day_tp = Decimal(str(day_transfer_price))
     night_tp = Decimal(str(night_transfer_price))
+    threshold = Decimal(str(price_threshold)) if price_threshold is not None else None
 
     enriched: list[tuple[Decimal, datetime]] = []
+    forced_slots: list[datetime] = []
 
     for entry in prices:
         ts: datetime = entry["start_time"]
@@ -444,8 +448,13 @@ def get_cheapest_hours(
         total = Decimal(str(entry["price_kwh"])) + transfer
 
         enriched.append((total, ts))  # keep original tz for caller
+        if threshold is not None and total <= threshold:
+            forced_slots.append(ts)
 
     # 4️⃣  Pick the N cheapest 15-minute periods (hours_needed * 4)
     enriched.sort(key=lambda x: x[0])
     periods_needed = hours_needed * 4  # Convert hours to 15-minute periods
-    return [slot for _, slot in enriched[:periods_needed]]
+    cheapest_slots = [slot for _, slot in enriched[:periods_needed]]
+    cheapest_set = set(cheapest_slots)
+    forced_extras = [slot for slot in forced_slots if slot not in cheapest_set]
+    return cheapest_slots + forced_extras

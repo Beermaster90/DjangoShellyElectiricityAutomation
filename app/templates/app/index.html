@@ -73,15 +73,18 @@
 
             /* Device Information Layout */
             .device-info-columns {
-                display: flex;
-                gap: 30px;
-                flex-wrap: wrap;
+                column-count: 2;
+                column-gap: 30px;
+                column-fill: balance;
             }
 
             .device-info-left,
             .device-info-right {
-                flex: 1;
-                min-width: 300px;
+                display: contents;
+            }
+
+            .device-info-columns > * {
+                break-inside: avoid;
             }
 
             .device-automation-row {
@@ -174,6 +177,7 @@
                     data-day-price="{{ device.day_transfer_price }}"
                     data-night-price="{{ device.night_transfer_price }}"
                     data-hours-needed="{{ device.run_hours_per_day }}"
+                    data-auto-assign-threshold="{{ device.auto_assign_price_threshold }}"
                     data-cheapest-hours="{{ device.cheapest_hours|join:',' }}"
                     data-device-status="{{ device.status }}"
                     data-thermostat-name="{% if device.thermostat_device %}{{ device.thermostat_device.familiar_name }}{% endif %}"
@@ -210,21 +214,30 @@
                     <p><strong>Day Transfer Price:</strong> <span id="dayPriceText">-</span> c/kWh (07:00 - 21:59)</p>
                     <p><strong>Night Transfer Price:</strong> <span id="nightPriceText">-</span> c/kWh (22:00 - 06:59)</p>
                     <p><strong>Defined Hours to Run:</strong> <span id="hoursNeededText">-</span></p>
+                    <p><strong>Auto-Assign Under:</strong> <span id="autoAssignThresholdText">-</span> c/kWh</p>
                 </div>
                 
                 <!-- Right Column -->
                 <div class="device-info-right">
                     <p><strong>Device Status:</strong> <span id="deviceStatus">-</span></p>
                     <p><strong>Device Running:</strong> <span id="deviceRunning">-</span></p>
-                    <div id="thermostatInfo" style="display: none;">
-                        <p><strong>Thermostat Device:</strong> <span id="thermostatNameText">-</span></p>
-                        <p><strong>Min Temperature:</strong> <span id="thermostatMinText">-</span></p>
-                        <p><strong>Max Temperature:</strong> <span id="thermostatMaxText">-</span></p>
-                        <p><strong>Target Temperature:</strong> <span id="thermostatTargetText">-</span></p>
-                        <p><strong>Current Temperature:</strong> <span id="thermostatCurrentText" class="temp-current">-</span></p>
-                        <p><strong>Temperature Updated:</strong> <span id="thermostatUpdatedText">-</span></p>
-                    </div>
                     <p><strong>Your Timezone:</strong> {{ user_timezone }}</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="table-container">
+            <h2>Thermostat Information</h2>
+            <div id="thermostatInfo" class="device-info-columns" style="display: none;">
+                <div class="device-info-left">
+                    <p><strong>Thermostat Device:</strong> <span id="thermostatNameText">-</span></p>
+                    <p><strong>Min Temperature:</strong> <span id="thermostatMinText">-</span></p>
+                    <p><strong>Max Temperature:</strong> <span id="thermostatMaxText">-</span></p>
+                </div>
+                <div class="device-info-right">
+                    <p><strong>Target Temperature:</strong> <span id="thermostatTargetText">-</span></p>
+                    <p><strong>Current Temperature:</strong> <span id="thermostatCurrentText" class="temp-current">-</span></p>
+                    <p><strong>Temperature Updated:</strong> <span id="thermostatUpdatedText">-</span></p>
                 </div>
             </div>
         </div>
@@ -395,6 +408,7 @@
                 let selectedDeviceId = selectedOption.value;
                 let dayPrice = parseFloat(selectedOption.getAttribute("data-day-price")) || 0;
                 let nightPrice = parseFloat(selectedOption.getAttribute("data-night-price")) || 0;
+                let autoAssignThreshold = parseFloat(selectedOption.getAttribute("data-auto-assign-threshold")) || 0;
                 let cheapestHours = selectedOption.getAttribute("data-cheapest-hours") || "";
                 let hoursNeeded = parseInt(selectedOption.getAttribute("data-hours-needed")) || 0;
                 let deviceStatus = parseInt(selectedOption.getAttribute("data-device-status")) || 0;
@@ -408,6 +422,7 @@
                 document.getElementById("dayPriceText").innerText = dayPrice.toFixed(2);
                 document.getElementById("nightPriceText").innerText = nightPrice.toFixed(2);
                 document.getElementById("hoursNeededText").innerText = hoursNeeded + " h";
+                document.getElementById("autoAssignThresholdText").innerText = autoAssignThreshold.toFixed(1);
 
                 const thermostatInfo = document.getElementById("thermostatInfo");
                 if (thermostatName) {

@@ -1,5 +1,7 @@
+from django import forms
 from django.contrib import admin
 from django.contrib.auth.models import User
+from django.db import models
 from .models import (
     ShellyDevice,
     ShellyTemperature,
@@ -23,6 +25,7 @@ class ShellyDeviceAdmin(admin.ModelAdmin):
         "run_hours_per_day",
         "day_transfer_price",
         "night_transfer_price",
+        "auto_assign_price_threshold",
         "created_at",
         "updated_at",
         "user",
@@ -32,6 +35,13 @@ class ShellyDeviceAdmin(admin.ModelAdmin):
         "shelly_server",
         "thermostat_device",
     )
+
+    formfield_overrides = {
+        models.DecimalField: {
+            "localize": False,
+            "widget": forms.NumberInput(attrs={"step": "0.1"}),
+        },
+    }
     
     def get_automation_status(self, obj):
         """Display automation status in a user-friendly way."""
@@ -54,6 +64,7 @@ class ShellyDeviceAdmin(admin.ModelAdmin):
         "run_hours_per_day",
         "day_transfer_price",
         "night_transfer_price",
+        "auto_assign_price_threshold",
         "created_at",
         "updated_at",
         "user",
@@ -150,6 +161,12 @@ class ShellyTemperatureAdmin(admin.ModelAdmin):
         "shelly_server",
     )
     ordering = ["-device_id"]
+    formfield_overrides = {
+        models.DecimalField: {
+            "localize": False,
+            "widget": forms.NumberInput(attrs={"step": "0.1"}),
+        },
+    }
 
     def shelly_device_id(self, obj):
         return obj.shelly_device_name

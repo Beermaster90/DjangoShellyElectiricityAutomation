@@ -50,14 +50,23 @@ class ShellyDevice(models.Model):
     # New fields for transfer prices
     day_transfer_price = models.DecimalField(
         max_digits=6,
-        decimal_places=5,
+        decimal_places=1,
         help_text="Transfer price during the day (c/kWh)",
     )
 
     night_transfer_price = models.DecimalField(
         max_digits=6,
-        decimal_places=5,
+        decimal_places=1,
         help_text="Transfer price during the night (c/kWh)",
+    )
+
+    auto_assign_price_threshold = models.DecimalField(
+        max_digits=6,
+        decimal_places=1,
+        default=0,
+        help_text=(
+            "Always assign periods when total price is at or below this threshold (c/kWh)"
+        ),
     )
 
     relay_channel = models.IntegerField(
