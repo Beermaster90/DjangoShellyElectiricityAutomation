@@ -1,9 +1,15 @@
-# DjangoShellyElectiricityAutomation Docker Usage Guide
+# ShellySmartEnergy Docker Usage Guide
 # First-Time Project Setup
 
 ## Prerequisites
 - Docker installed (required for `docker-prod.sh` and `docker-test.sh`).
 - Python 3 (required for local venv setup).
+
+## Quick Install (One Command)
+Run this from any Linux host to install prerequisites and set up the project in the current directory:
+```bash
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/Beermaster90/ShellySmartEnergy/main/Initial_ShellySmartEnergy_Setup.sh)"
+```
 
 ## 1. Create a Python Virtual Environment (venv)
 ```bash
@@ -42,7 +48,7 @@ To build and run the production container:
 bash docker-prod.sh
 ```
 - The app will run on port 8000.
-- Persistent data is stored in `~/DjangoShellyElectiricityAutomation/data/` in your home directory.
+- Persistent data is stored in `~/ShellySmartEnergy/data/` in your home directory.
 
 ### 2. Test
 To build and run the test container:
@@ -50,7 +56,7 @@ To build and run the test container:
 bash docker-test.sh
 ```
 - The app will run on port 9000.
-- Persistent data is stored in `~/DjangoShellyElectiricityAutomation/data-test/` in your home directory.
+- Persistent data is stored in `~/ShellySmartEnergy/data-test/` in your home directory.
 
 ## Connecting to the Web UI
 Once the container is running, open the web page in your browser:
@@ -125,7 +131,7 @@ Copy the `Server` (base URL) and `API key/Auth key` values into the fields above
 
 ## Notes
 - The scripts automatically stop and remove any existing container with the same name before starting a new one.
-- Data is persistent between runs as long as you do not delete the `~/DjangoShellyElectiricityAutomation/data/` or `~/DjangoShellyElectiricityAutomation/data-test/` folders.
+- Data is persistent between runs as long as you do not delete the `~/ShellySmartEnergy/data/` or `~/ShellySmartEnergy/data-test/` folders.
 - For production, consider using a real database instead of SQLite for better reliability and scalability.
 
 ## License

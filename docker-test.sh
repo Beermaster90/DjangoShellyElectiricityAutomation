@@ -2,11 +2,11 @@
 # Build and run Django test Docker container
 
 # Create data-test directory in user's home directory
-DATA_TEST_DIR="$HOME/DjangoShellyElectiricityAutomation/data-test"
+DATA_TEST_DIR="$HOME/ShellySmartEnergy/data-test"
 if [ ! -d "$DATA_TEST_DIR" ]; then
   mkdir -p "$DATA_TEST_DIR"
 fi
-sudo chown 999:999 "$DATA_TEST_DIR"
+sudo chown "$(id -u)":"$(id -g)" "$DATA_TEST_DIR"
 VERSION=$(cat VERSION)
 BUILD_DATE=$(date +%Y%m%d-%H%M%S)
 TAG="$VERSION-$BUILD_DATE"
@@ -21,6 +21,7 @@ docker run -d \
   -p 9000:8000 \
   --name $CONTAINER_NAME \
   --restart unless-stopped \
+  --user "$(id -u):$(id -g)" \
   -v "$DATA_TEST_DIR":/data \
   django-shelly-test:$TAG
 docker image prune -f

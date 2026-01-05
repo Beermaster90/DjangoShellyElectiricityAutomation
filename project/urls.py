@@ -1,5 +1,5 @@
 """
-Definition of urls for DjangoShellyElectiricityAutomation.
+Definition of urls for ShellySmartEnergy.
 """
 
 from datetime import datetime

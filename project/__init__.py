@@ -1,3 +1,3 @@
 """
-Package for DjangoShellyElectiricityAutomation.
+Package for ShellySmartEnergy.
 """

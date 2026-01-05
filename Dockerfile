@@ -113,14 +113,12 @@ rm -f /data/.test_write\n\
 # Initialize database if it doesnt exist\n\
 if [ ! -f "/data/db.sqlite3" ]; then\n\
     echo "Initializing database at /data/db.sqlite3..."\n\
-    python manage.py makemigrations\n\
     python manage.py migrate\n\
     echo "Creating admin user..."\n\
     python create_test_user.py\n\
     echo "Database initialized successfully."\n\
 else\n\
     echo "Database exists at /data/db.sqlite3, checking for model changes..."\n\
-    python manage.py makemigrations\n\
     echo "Running migrations..."\n\
     python manage.py migrate\n\
     echo "Ensuring admin user exists..."\n\

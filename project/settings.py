@@ -1,5 +1,5 @@
 """
-Django settings for DjangoShellyElectiricityAutomation project.
+Django settings for ShellySmartEnergy project.
 
 Based on 'django-admin startproject' using Django 2.1.2.
 

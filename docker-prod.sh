@@ -3,11 +3,11 @@
 # Build and run Django production Docker container
 
 # Create data directory in user's home directory
-DATA_DIR="$HOME/DjangoShellyElectiricityAutomation/data"
+DATA_DIR="$HOME/ShellySmartEnergy/data"
 if [ ! -d "$DATA_DIR" ]; then
   mkdir -p "$DATA_DIR"
 fi
-sudo chown 999:999 "$DATA_DIR"
+sudo chown "$(id -u)":"$(id -g)" "$DATA_DIR"
 
 docker image prune -f
 
@@ -29,5 +29,6 @@ docker run -d \
   -p 8000:8000 \
   --name $CONTAINER_NAME \
   --restart unless-stopped \
+  --user "$(id -u):$(id -g)" \
   -v "$DATA_DIR":/data \
   django-shelly-prod:$TAG
